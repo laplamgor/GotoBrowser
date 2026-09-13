@@ -397,14 +397,14 @@ public class KcUtils {
                 } else {
                     String message = "HTTP: " + response.code();
                     if (response.code() == 404) message = "No update found.";
-                    Snackbar.make(ac.findViewById(R.id.main_container),
+                    Snackbar.make(ac.findViewById(android.R.id.content),
                             message, Snackbar.LENGTH_LONG).show();
                 }
             }
 
             @Override
             public void onFailure(@NonNull Call<JsonObject> call, @NonNull Throwable t) {
-                Snackbar.make(ac.findViewById(R.id.main_container),
+                Snackbar.make(ac.findViewById(android.R.id.content),
                         String.valueOf(t.getLocalizedMessage()), Snackbar.LENGTH_LONG).show();
             }
         });
@@ -421,7 +421,7 @@ public class KcUtils {
                     "https://luckyjervis.com/GotoBrowser/apk_download.php?q=%s", tag);
             if (BuildConfig.VERSION_NAME.equals(tag)) {
                 if (show_toast)
-                    Snackbar.make(ac.findViewById(R.id.main_container),
+                    Snackbar.make(ac.findViewById(android.R.id.content),
                             R.string.setting_latest_version, Snackbar.LENGTH_LONG).show();
             } else {
                 showAppUpdateDownloadDialog(ac, tag, latest_file);
