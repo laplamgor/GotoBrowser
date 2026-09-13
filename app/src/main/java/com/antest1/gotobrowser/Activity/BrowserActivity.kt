@@ -15,7 +15,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.util.Rational
-import android.view.LayoutInflater
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
@@ -30,18 +29,24 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -49,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -132,6 +138,7 @@ class BrowserActivity : ComponentActivity() {
 
         setContent {
             GotobrowserTheme {
+                val isK3dDialogVisible = remember { mutableStateOf(false) }
                 Box(modifier = Modifier.fillMaxSize()) {
                     BrowserScreenContent(
                         viewModel = viewModel,
@@ -165,7 +172,7 @@ class BrowserActivity : ComponentActivity() {
                         PanelButton(id = R.drawable.light_mode, active = isKeep, onClick = { viewModel.toggleKeepMode() })
                         PanelButton(id = R.drawable.caption_icon, active = isCaption, onClick = { viewModel.toggleCaptionMode() })
                         if (viewModel.k3dPatcher.isPatcherEnabled) {
-                            PanelButton(id = R.drawable.kantai3d_icon, onClick = { showKantai3dDialog(this@BrowserActivity, viewModel.k3dPatcher) })
+                            PanelButton(id = R.drawable.kantai3d_icon, onClick = { isK3dDialogVisible.value = true })
                         }
                         PanelButton(id = R.drawable.exit_to_app, onClick = { showLogoutDialog() })
 
@@ -173,6 +180,17 @@ class BrowserActivity : ComponentActivity() {
                         IconButton(onClick = { toolbarVisible.value = false }) {
                             Icon(painterResource(id = R.drawable.close_icon), "Close", tint = Color.White)
                         }
+                    }
+
+                    if (isK3dDialogVisible.value) {
+                        Kantai3dDialog(
+                            patcher = viewModel.k3dPatcher,
+                            onSave = { enabled ->
+                                viewModel.k3dPatcher.isEffectEnabled = enabled
+                                isK3dDialogVisible.value = false
+                            },
+                            onDismiss = { isK3dDialogVisible.value = false }
+                        )
                     }
                 }
             }
@@ -416,25 +434,6 @@ class BrowserActivity : ComponentActivity() {
     private fun supportsPiPMode(): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
     }
-
-    private fun showKantai3dDialog(context: Context, patcher: com.antest1.gotobrowser.Helpers.K3dPatcher) {
-        val dialogView = LayoutInflater.from(context).inflate(R.layout.k3d_form, null)
-        if (patcher.imageUrl != null) {
-            val textView = dialogView.findViewById<TextView>(R.id.kantai3d_msg_text)
-            textView.text = String.format(Locale.US, context.getString(if (patcher.isDepthMapLoaded) R.string.msg_kantai3d_loaded else R.string.msg_kantai3d_error), patcher.imageUrl)
-        }
-        val switchCompat = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_3d)
-        switchCompat.isChecked = patcher.isEffectEnabled
-        MaterialAlertDialogBuilder(context)
-            .setTitle(R.string.settings_mod_kantai3d_enable)
-            .setView(dialogView)
-            .setPositiveButton(R.string.text_save) { dialog, _ ->
-                patcher.isEffectEnabled = switchCompat.isChecked
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.text_cancel) { dialog, _ -> dialog.cancel() }
-            .show()
-    }
 }
 
 // Top-level so both the activity's floating toolbar and the IDE preview can use it.
@@ -447,6 +446,53 @@ fun PanelButton(id: Int, active: Boolean = false, onClick: () -> Unit) {
             modifier = Modifier.size(20.dp)
         )
     }
+}
+
+// Compose replacement for the old k3d_form.xml dialog.
+@Composable
+private fun Kantai3dDialog(
+    patcher: com.antest1.gotobrowser.Helpers.K3dPatcher,
+    onSave: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var effectEnabled by remember { mutableStateOf(patcher.isEffectEnabled) }
+
+    val imageUrl = patcher.imageUrl
+    val message = when {
+        imageUrl == null -> stringResource(id = R.string.msg_kantai3d_init)
+        patcher.isDepthMapLoaded -> String.format(Locale.US, stringResource(id = R.string.msg_kantai3d_loaded), imageUrl)
+        else -> String.format(Locale.US, stringResource(id = R.string.msg_kantai3d_error), imageUrl)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.settings_mod_kantai3d_enable)) },
+        text = {
+            Column {
+                Text(text = message, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(id = R.string.menu_tooltip_kantai3d),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(checked = effectEnabled, onCheckedChange = { effectEnabled = it })
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = stringResource(id = R.string.msg_kantai3d_redirect))
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(effectEnabled) }) {
+                Text(text = stringResource(id = R.string.text_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.text_cancel))
+            }
+        }
+    )
 }
 
 // Stateless overlay layer (subtitle, capture, close). Extracted so the real

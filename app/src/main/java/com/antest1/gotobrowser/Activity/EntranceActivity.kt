@@ -5,8 +5,6 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.widget.EditText
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.browser.customtabs.CustomTabColorSchemeParams
@@ -28,9 +26,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,13 +38,18 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,6 +59,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -114,13 +121,15 @@ fun EntranceScreen(viewModel: EntranceViewModel) {
     val broadcastMode by viewModel.broadcastMode.observeAsState(false)
     val panelStart by viewModel.panelStart.observeAsState(false)
 
+    var showLoginForm by remember { mutableStateOf(false) }
+
     EntranceScreenContent(
         connector = connector,
         silentMode = silentMode,
         broadcastMode = broadcastMode,
         panelStart = panelStart,
         onConnectorClick = { showConnectorSelectionDialog(context, viewModel) },
-        onAutoCompleteClick = { showAutoCompleteDialog(context, viewModel) },
+        onAutoCompleteClick = { showLoginForm = true },
         onSilentChange = { viewModel.setSilentMode(it) },
         onBroadcastChange = { enabled ->
             viewModel.setBroadcastMode(enabled)
@@ -141,6 +150,19 @@ fun EntranceScreen(viewModel: EntranceViewModel) {
         onManualClick = { openManual(context) },
         onSettingsClick = { openSettings(context) }
     )
+
+    if (showLoginForm) {
+        LoginFormDialog(
+            initialId = viewModel.sharedPref.getString(PREF_DMM_ID, "").orEmpty(),
+            initialPassword = viewModel.sharedPref.getString(PREF_DMM_PASS, "").orEmpty(),
+            onSave = { loginId, loginPassword ->
+                viewModel.sharedPref.edit().putString(PREF_DMM_ID, loginId).apply()
+                viewModel.sharedPref.edit().putString(PREF_DMM_PASS, loginPassword).apply()
+                showLoginForm = false
+            },
+            onDismiss = { showLoginForm = false }
+        )
+    }
 }
 
 // Stateless, side-effect-free layout. All state is passed in and every action is
@@ -409,6 +431,61 @@ fun SwitchItem(text: String, checked: Boolean, onCheckedChange: (Boolean) -> Uni
     }
 }
 
+// Compose replacement for the old login_form.xml dialog.
+@Composable
+private fun LoginFormDialog(
+    initialId: String,
+    initialPassword: String,
+    onSave: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var loginId by remember { mutableStateOf(initialId) }
+    var loginPassword by remember { mutableStateOf(initialPassword) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.autocomplete_title)) },
+        text = {
+            Column {
+                Text(
+                    text = stringResource(id = R.string.autocomplete_msg),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = loginId,
+                    onValueChange = { loginId = it },
+                    label = { Text("DMM ID") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = loginPassword,
+                    onValueChange = { loginPassword = it },
+                    label = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(loginId, loginPassword) }) {
+                Text(text = stringResource(id = R.string.text_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.text_cancel))
+            }
+        }
+    )
+}
+
 private fun openSettings(context: Context) {
     val intent = Intent(context, SettingsActivity::class.java)
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -448,26 +525,6 @@ private fun showConnectorSelectionDialog(context: Context, viewModel: EntranceVi
             KcUtils.showToast(context.applicationContext, URL_LIST[i])
             dialog.dismiss()
         }
-        .show()
-}
-
-private fun showAutoCompleteDialog(context: Context, viewModel: EntranceViewModel) {
-    val dialogView = LayoutInflater.from(context).inflate(R.layout.login_form, null)
-    val formEmail = dialogView.findViewById<EditText>(R.id.input_id)
-    val formPassword = dialogView.findViewById<EditText>(R.id.input_pw)
-    formEmail.setText(viewModel.sharedPref.getString(PREF_DMM_ID, ""))
-    formPassword.setText(viewModel.sharedPref.getString(PREF_DMM_PASS, ""))
-
-    MaterialAlertDialogBuilder(context)
-        .setView(dialogView)
-        .setPositiveButton(R.string.text_save) { dialog, _ ->
-            val loginId = formEmail.text.toString()
-            val loginPassword = formPassword.text.toString()
-            viewModel.sharedPref.edit().putString(PREF_DMM_ID, loginId).apply()
-            viewModel.sharedPref.edit().putString(PREF_DMM_PASS, loginPassword).apply()
-            dialog.dismiss()
-        }
-        .setNegativeButton(R.string.text_cancel) { dialog, _ -> dialog.cancel() }
         .show()
 }
 
