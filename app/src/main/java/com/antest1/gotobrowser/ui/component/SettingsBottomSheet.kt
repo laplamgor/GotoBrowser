@@ -1,46 +1,34 @@
-package com.antest1.gotobrowser.Activity
+package com.antest1.gotobrowser.ui.component
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import androidx.activity.compose.setContent
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -57,13 +45,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModelProvider
+import com.antest1.gotobrowser.Activity.SettingsViewModel
 import com.antest1.gotobrowser.Constants.PREF_ADJUSTMENT
 import com.antest1.gotobrowser.Constants.PREF_ALTER_ENDPOINT
 import com.antest1.gotobrowser.Constants.PREF_ALTER_GADGET
 import com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD
-import com.antest1.gotobrowser.Constants.PREF_BROADCAST
-import com.antest1.gotobrowser.Constants.PREF_CHECK_UPDATE
 import com.antest1.gotobrowser.Constants.PREF_CURSOR_MODE
 import com.antest1.gotobrowser.Constants.PREF_DEVTOOLS_DEBUG
 import com.antest1.gotobrowser.Constants.PREF_DISABLE_REFRESH_DIALOG
@@ -79,17 +65,13 @@ import com.antest1.gotobrowser.Constants.PREF_MOD_KCCP_LANG_PATCH
 import com.antest1.gotobrowser.Constants.PREF_MOD_KCCP_LANG_PATCH_NAME
 import com.antest1.gotobrowser.Constants.PREF_MULTIWIN_MARGIN
 import com.antest1.gotobrowser.Constants.PREF_PIP_MODE
-import com.antest1.gotobrowser.Constants.PREF_SETTINGS
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_FONTSIZE
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_LOCALE
-import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_UPDATE
 import com.antest1.gotobrowser.Constants.PREF_USE_EXTCACHE
 import com.antest1.gotobrowser.R
-import com.antest1.gotobrowser.ui.theme.GotobrowserTheme
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private const val DEFAULT_SUBTITLE_FONTSIZE = 18
 private const val MIN_SUBTITLE_FONTSIZE = 12
 private const val MAX_SUBTITLE_FONTSIZE = 24
 
@@ -98,66 +80,60 @@ private const val GITHUB_GOTOBROWSER = "https://github.com/antest1/GotoBrowser/"
 
 private data class ListOption(val value: String, val title: String, val summary: String? = null)
 
-class SettingsActivity : AppCompatActivity() {
-    private lateinit var viewModel: SettingsViewModel
+/**
+ * Modal bottom sheet hosting the settings list on top of the browser.
+ *
+ * The browser (WebView) keeps running behind the sheet; this does not navigate
+ * to a different activity. Every preference mutation is surfaced through
+ * [onSettingChanged] with the changed preference key, leaving the host to decide
+ * whether the change can be applied live or needs a WebView reload.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsBottomSheet(
+    viewModel: SettingsViewModel,
+    onDismissRequest: () -> Unit,
+    onSettingChanged: (String) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(this)[SettingsViewModel::class.java]
-
-        setContent {
-            GotobrowserTheme {
-                SettingsScreen(
-                    onBack = { finish() },
-                    viewModel = viewModel
-                )
-            }
-        }
-        createNotificationChannel()
-    }
-
-    companion object {
-        const val CHANNEL_ID = "gotobrowser_screenshot"
-
-        @JvmStatic
-        fun setInitialSettings(sharedPref: SharedPreferences) {
-            val editor = sharedPref.edit()
-            for (key in PREF_SETTINGS) {
-                if (!sharedPref.contains(key)) {
-                    when (key) {
-                        PREF_LANDSCAPE, PREF_KEYBOARD, PREF_SUBTITLE_UPDATE -> editor.putBoolean(key, true)
-                        PREF_ADJUSTMENT, PREF_BROADCAST, PREF_USE_EXTCACHE,
-                        PREF_PIP_MODE, PREF_MULTIWIN_MARGIN, PREF_ALTER_GADGET,
-                        PREF_DOWNLOAD_RETRY, PREF_MOD_KANTAI3D, PREF_MOD_KCCP_LANG_PATCH,
-                        PREF_MOD_FPS, PREF_MOD_CRIT, PREF_DEVTOOLS_DEBUG -> editor.putBoolean(key, false)
-                        PREF_CURSOR_MODE -> editor.putString(key, "1")
-                        PREF_ALTER_METHOD -> editor.putString(key, "1")
-                        PREF_SUBTITLE_FONTSIZE -> editor.putInt(key, DEFAULT_SUBTITLE_FONTSIZE)
-                    }
-                }
-            }
-            editor.apply()
-        }
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name: CharSequence = getString(R.string.channel_name)
-            val description = getString(R.string.channel_description)
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID, name, importance)
-            channel.description = description
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager?.createNotificationChannel(channel)
-        }
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState
+    ) {
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+        )
+        SettingsContent(
+            viewModel = viewModel,
+            snackbarHostState = snackbarHostState,
+            modifier = Modifier.fillMaxWidth(),
+            onSettingChanged = onSettingChanged
+        )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The full settings list, decoupled from any container, so it can be hosted by
+ * the browser's bottom sheet (or any other surface later on).
+ *
+ * @param onSettingChanged invoked with the preference key whenever a user action
+ *        mutates a preference. The host decides if it can be applied live or
+ *        requires a WebView reload.
+ */
 @Composable
-fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel) {
-    val snackbarHostState = remember { SnackbarHostState() }
-
+fun SettingsContent(
+    viewModel: SettingsViewModel,
+    snackbarHostState: SnackbarHostState,
+    modifier: Modifier = Modifier,
+    onSettingChanged: (String) -> Unit = {}
+) {
     val patchSummary by viewModel.patchUpdateSummary.observeAsState("checking updates...")
     val patchEnabled by viewModel.patchUpdateEnabled.observeAsState(false)
     val subtitleSummary by viewModel.subtitleUpdateSummary.observeAsState("checking updates...")
@@ -173,38 +149,22 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel) {
         viewModel.refreshKccpDependentRows(null)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_cancel))
-                    }
-                }
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-        ) {
-            BrowserSettingsSection(viewModel)
-            SubtitleSection(viewModel, subtitleSummary, subtitleEnabled)
-            ConnectionSection(viewModel, snackbarHostState)
-            ModsSection(
-                viewModel,
-                patchTitle = patchAboutTitle,
-                patchUrl = patchAboutUrl,
-                patchSummary = patchSummary,
-                patchEnabledState = patchEnabled
-            )
-            AppInfoSection(viewModel)
-            Spacer(modifier = Modifier.height(24.dp))
-        }
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState())
+    ) {
+        BrowserSettingsSection(viewModel, onSettingChanged)
+        SubtitleSection(viewModel, subtitleSummary, subtitleEnabled, onSettingChanged)
+        ConnectionSection(viewModel, snackbarHostState, onSettingChanged)
+        ModsSection(
+            viewModel,
+            patchTitle = patchAboutTitle,
+            patchUrl = patchAboutUrl,
+            patchSummary = patchSummary,
+            patchEnabledState = patchEnabled,
+            onSettingChanged = onSettingChanged
+        )
+        AppInfoSection(viewModel, onSettingChanged)
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -223,27 +183,28 @@ private fun SectionHeader(resId: Int) {
 }
 
 @Composable
-private fun BrowserSettingsSection(viewModel: SettingsViewModel) {
+private fun BrowserSettingsSection(viewModel: SettingsViewModel, onSettingChanged: (String) -> Unit) {
     SectionHeader(R.string.settings_appinfo_browsersettings)
-    SwitchRow(viewModel, PREF_LANDSCAPE, R.string.mode_landscape, R.string.settings_recommended_summary)
-    SwitchRow(viewModel, PREF_ADJUSTMENT, R.string.mode_adjustment, R.string.settings_recommended_summary)
-    SwitchRow(viewModel, PREF_FONT_PREFETCH, R.string.browser_fontprefetch, R.string.settings_recommended_summary)
+    SwitchRow(viewModel, PREF_LANDSCAPE, R.string.mode_landscape, R.string.settings_recommended_summary, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_ADJUSTMENT, R.string.mode_adjustment, R.string.settings_recommended_summary, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_FONT_PREFETCH, R.string.browser_fontprefetch, R.string.settings_recommended_summary, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_USE_EXTCACHE, R.string.settings_use_external_dir, R.string.settings_recommended_summary,
-        onChanged = { viewModel.onExternalCacheChanged() })
-    SwitchRow(viewModel, PREF_KEYBOARD, R.string.mode_enable_keyboard)
-    ListRow(viewModel, PREF_CURSOR_MODE, R.string.setting_cursor_mode, cursorModeOptions())
-    SwitchRow(viewModel, PREF_DISABLE_REFRESH_DIALOG, R.string.browser_disable_refresh_dialog)
-    SwitchRow(viewModel, PREF_PIP_MODE, R.string.browser_enablepipmode)
-    SwitchRow(viewModel, PREF_MULTIWIN_MARGIN, R.string.settings_mw_margin)
+        onChanged = { viewModel.onExternalCacheChanged() }, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_KEYBOARD, R.string.mode_enable_keyboard, onSettingChanged = onSettingChanged)
+    ListRow(viewModel, PREF_CURSOR_MODE, R.string.setting_cursor_mode, cursorModeOptions(), onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_DISABLE_REFRESH_DIALOG, R.string.browser_disable_refresh_dialog, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_PIP_MODE, R.string.browser_enablepipmode, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_MULTIWIN_MARGIN, R.string.settings_mw_margin, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_LEGACY_RENDERER, R.string.settings_legacy_renderer_enable,
-        R.string.settings_legacy_renderer_summary, onChanged = { viewModel.onLegacyRendererChanged() })
+        R.string.settings_legacy_renderer_summary, onChanged = { viewModel.onLegacyRendererChanged() }, onSettingChanged = onSettingChanged)
 }
 
 @Composable
-private fun SubtitleSection(viewModel: SettingsViewModel, subtitleSummary: String, subtitleEnabled: Boolean) {
+private fun SubtitleSection(viewModel: SettingsViewModel, subtitleSummary: String, subtitleEnabled: Boolean, onSettingChanged: (String) -> Unit) {
     SectionHeader(R.string.settings_subtitle_label)
     ListRow(viewModel, PREF_SUBTITLE_LOCALE, R.string.settings_subtitle_language, subtitleLocaleOptions(),
-        onSelected = { viewModel.onSubtitleLocaleChanged(it); true })
+        onSelected = { viewModel.onSubtitleLocaleChanged(it); true },
+        onSettingChanged = onSettingChanged)
 
     var showSubtitleSizeDialog by remember { mutableStateOf(false) }
     val subtitleSize = remember { mutableIntStateOf(viewModel.getSubtitleFontSize()) }
@@ -259,6 +220,7 @@ private fun SubtitleSection(viewModel: SettingsViewModel, subtitleSummary: Strin
                 viewModel.setInt(PREF_SUBTITLE_FONTSIZE, newSize)
                 subtitleSize.intValue = newSize
                 showSubtitleSizeDialog = false
+                onSettingChanged(PREF_SUBTITLE_FONTSIZE)
             },
             onDismiss = { showSubtitleSizeDialog = false }
         )
@@ -273,10 +235,11 @@ private fun SubtitleSection(viewModel: SettingsViewModel, subtitleSummary: Strin
 }
 
 @Composable
-private fun ConnectionSection(viewModel: SettingsViewModel, snackbarHostState: androidx.compose.material3.SnackbarHostState) {
+private fun ConnectionSection(viewModel: SettingsViewModel, snackbarHostState: SnackbarHostState, onSettingChanged: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     SectionHeader(R.string.setting_connection)
-    SwitchRow(viewModel, PREF_ALTER_GADGET, R.string.connection_use_alter, R.string.connection_use_alter_summary)
+    SwitchRow(viewModel, PREF_ALTER_GADGET, R.string.connection_use_alter, R.string.connection_use_alter_summary,
+        onSettingChanged = onSettingChanged)
 
     val alterGadgetEnabled = viewModel.getBoolean(PREF_ALTER_GADGET, false)
     ListRow(
@@ -291,7 +254,8 @@ private fun ConnectionSection(viewModel: SettingsViewModel, snackbarHostState: a
                 }
                 false
             }
-        }
+        },
+        onSettingChanged = onSettingChanged
     )
 
     var endpoint by remember { mutableStateOf(viewModel.getAlterEndpoint()) }
@@ -310,12 +274,14 @@ private fun ConnectionSection(viewModel: SettingsViewModel, snackbarHostState: a
                 viewModel.onAlterEndpointChanged(value)
                 endpoint = viewModel.getAlterEndpoint()
                 showEndpointDialog = false
+                onSettingChanged(PREF_ALTER_ENDPOINT)
             },
             onDismiss = { showEndpointDialog = false }
         )
     }
 
-    SwitchRow(viewModel, PREF_DOWNLOAD_RETRY, R.string.settings_retry_enable, R.string.settings_retry_summary)
+    SwitchRow(viewModel, PREF_DOWNLOAD_RETRY, R.string.settings_retry_enable, R.string.settings_retry_summary,
+        onSettingChanged = onSettingChanged)
 }
 
 @Composable
@@ -324,31 +290,35 @@ private fun ModsSection(
     patchTitle: Int,
     patchUrl: String,
     patchSummary: String,
-    patchEnabledState: Boolean
+    patchEnabledState: Boolean,
+    onSettingChanged: (String) -> Unit
 ) {
     val context = LocalContext.current
     SectionHeader(R.string.settings_mod_label)
-    SwitchRow(viewModel, PREF_MOD_FPS, R.string.settings_mod_fps_enable, R.string.settings_mod_fps_summary)
+    SwitchRow(viewModel, PREF_MOD_FPS, R.string.settings_mod_fps_enable, R.string.settings_mod_fps_summary,
+        onSettingChanged = onSettingChanged)
 
     val kantai3dEnabled = viewModel.isKantai3dEnabled()
     SwitchRow(viewModel, PREF_MOD_KANTAI3D, R.string.settings_mod_kantai3d_enable,
-        R.string.settings_mod_kantai3d_summary, enabled = kantai3dEnabled)
+        R.string.settings_mod_kantai3d_summary, enabled = kantai3dEnabled, onSettingChanged = onSettingChanged)
     ClickRow(
         title = R.string.settings_mod_kantai3d_about,
         summaryText = GITHUB_KANTAI3D,
         onClick = { openUrl(context, GITHUB_KANTAI3D) }
     )
 
-    SwitchRow(viewModel, PREF_MOD_CRIT, R.string.settings_mod_crit_enable, R.string.settings_mod_crit_summary)
+    SwitchRow(viewModel, PREF_MOD_CRIT, R.string.settings_mod_crit_enable, R.string.settings_mod_crit_summary,
+        onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_MOD_KCCP_LANG_PATCH, R.string.settings_mod_kccp, R.string.settings_mod_kccp_summary,
-        onChanged = { viewModel.onKccpPatchChanged() })
+        onChanged = { viewModel.onKccpPatchChanged() }, onSettingChanged = onSettingChanged)
 
     val patchEnabled = viewModel.isKccpPatchEnabled()
     ListRow(
         viewModel, PREF_MOD_KCCP_LANG_PATCH_NAME, R.string.settings_mod_kccp_patch_name, kccpLanguageOptions(),
         enabled = patchEnabled,
         summaryProvider = { viewModel.getKccpPatchSummary(it) },
-        onSelected = { viewModel.onPatchLanguageChanged(it); true }
+        onSelected = { viewModel.onPatchLanguageChanged(it); true },
+        onSettingChanged = onSettingChanged
     )
 
     ClickRow(
@@ -372,7 +342,7 @@ private fun ModsSection(
 }
 
 @Composable
-private fun AppInfoSection(viewModel: SettingsViewModel) {
+private fun AppInfoSection(viewModel: SettingsViewModel, onSettingChanged: (String) -> Unit) {
     val context = LocalContext.current
     val activity = context as? android.app.Activity
     SectionHeader(R.string.settings_appinfo_label)
@@ -391,7 +361,8 @@ private fun AppInfoSection(viewModel: SettingsViewModel) {
         summaryText = GITHUB_GOTOBROWSER,
         onClick = { openUrl(context, GITHUB_GOTOBROWSER) }
     )
-    SwitchRow(viewModel, PREF_DEVTOOLS_DEBUG, R.string.setting_devtools_enable, R.string.setting_devtools_description)
+    SwitchRow(viewModel, PREF_DEVTOOLS_DEBUG, R.string.setting_devtools_enable, R.string.setting_devtools_description,
+        onSettingChanged = onSettingChanged)
 }
 
 // ---------------------------------------------------------------------------
@@ -405,7 +376,8 @@ private fun SwitchRow(
     titleRes: Int,
     summaryRes: Int? = null,
     enabled: Boolean = true,
-    onChanged: () -> Unit = {}
+    onChanged: () -> Unit = {},
+    onSettingChanged: (String) -> Unit = {}
 ) {
     val checked = remember { mutableStateOf(viewModel.getBoolean(key, false)) }
     ListItem(
@@ -419,6 +391,7 @@ private fun SwitchRow(
                     checked.value = it
                     viewModel.setBoolean(key, it)
                     onChanged()
+                    onSettingChanged(key)
                 }
             )
         },
@@ -427,6 +400,7 @@ private fun SwitchRow(
             checked.value = newValue
             viewModel.setBoolean(key, newValue)
             onChanged()
+            onSettingChanged(key)
         }
     )
     HorizontalDivider()
@@ -465,7 +439,8 @@ private fun ListRow(
         options.firstOrNull { it.value == value }?.summary
             ?: options.firstOrNull { it.value == value }?.title ?: value
     },
-    onSelected: (String) -> Boolean = { true }
+    onSelected: (String) -> Boolean = { true },
+    onSettingChanged: (String) -> Unit = {}
 ) {
     var selected by remember { mutableStateOf(viewModel.getString(key, options.first().value)) }
     var showDialog by remember { mutableStateOf(false) }
@@ -486,6 +461,7 @@ private fun ListRow(
                 if (onSelected(value)) {
                     selected = value
                     viewModel.setString(key, value)
+                    onSettingChanged(key)
                 }
                 showDialog = false
             },
@@ -634,6 +610,7 @@ private fun kccpLanguageOptions() = listOf(
     ListOption("kccp_lang_en", "KanColle English Patch"),
     ListOption("kccp_lang_id", "KanColle Indonesia Patch")
 )
+
 private fun openUrl(context: Context, url: String) {
     if (url.isEmpty()) return
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))

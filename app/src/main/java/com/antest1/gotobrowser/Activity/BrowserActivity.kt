@@ -20,7 +20,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.SslErrorHandler
-import android.widget.TextView
+import androidx.annotation.RequiresApi
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
@@ -74,13 +74,18 @@ import com.antest1.gotobrowser.Browser.WebViewL
 import com.antest1.gotobrowser.Browser.WebViewManager
 import com.antest1.gotobrowser.BuildConfig
 import com.antest1.gotobrowser.Constants.ACTION_SHOWKEYBOARD
+import com.antest1.gotobrowser.Constants.DEFAULT_SUBTITLE_FONT_SIZE
+import com.antest1.gotobrowser.Constants.PREF_DOWNLOAD_RETRY
 import com.antest1.gotobrowser.Constants.PREF_LANDSCAPE
+import com.antest1.gotobrowser.Constants.PREF_MULTIWIN_MARGIN
 import com.antest1.gotobrowser.Constants.PREF_PIP_MODE
+import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_FONTSIZE
 import com.antest1.gotobrowser.Constants.REQUEST_NOTIFICATION_PERMISSION
 import com.antest1.gotobrowser.Helpers.BackPressCloseHandler
 import com.antest1.gotobrowser.Helpers.KcUtils
 import com.antest1.gotobrowser.Notification.ScreenshotNotification
 import com.antest1.gotobrowser.R
+import com.antest1.gotobrowser.ui.component.SettingsBottomSheet
 import com.antest1.gotobrowser.ui.component.VerticalFloatingToolbar
 import com.antest1.gotobrowser.ui.theme.GotobrowserTheme
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -90,20 +95,13 @@ class BrowserActivity : ComponentActivity() {
     companion object {
         const val FOREGROUND_ACTION = "${BuildConfig.APPLICATION_ID}.foreground"
 
-        @JvmStatic
-        fun setSubtitleTextView(context: Context, tv: TextView, size: Int) {
-            val colorBlack = ContextCompat.getColor(context, R.color.black)
-            tv.textSize = size.toFloat()
-            if (size >= 24) {
-                tv.setShadowLayer(3f, 3f, 3f, colorBlack)
-            } else {
-                tv.setShadowLayer(2f, 2f, 2f, colorBlack)
-            }
-        }
+        // Split-screen divider margin, in dp (matches the legacy 24px value).
+        private const val MULTIWIN_MARGIN_DP = 24
     }
 
     private var uiOption: Int = 0
     private lateinit var viewModel: BrowserViewModel
+    private lateinit var settingsViewModel: SettingsViewModel
     private var manager: WebViewManager? = null
     private var mContentView: WebViewL? = null
     private lateinit var screenshotNotification: ScreenshotNotification
@@ -115,11 +113,33 @@ class BrowserActivity : ComponentActivity() {
     private val closeButtonVisible = mutableStateOf(false)
     // Hoisted out of setContent so handleBackPress() can reveal the toolbar.
     private val toolbarVisible = mutableStateOf(false)
+    // Settings bottom sheet + "reload required" prompt state, hoisted so the
+    // back-press handler can close them before falling through to exit logic.
+    private val settingsSheetVisible = mutableStateOf(false)
+    private val refreshPromptVisible = mutableStateOf(false)
+    // Settings that can be applied to the running browser without a reload.
+    // Subtitle size is Compose state so the overlay recomposes immediately.
+    private val subtitleFontSize = mutableStateOf(DEFAULT_SUBTITLE_FONT_SIZE)
+    // Extra top/bottom padding (in dp) for the split-screen divider, managed by
+    // updateMultiwindowMargin(). 0 when the feature is off or unsupported.
+    private val multiwinMarginDp = mutableStateOf(0)
+
+    /**
+     * Settings whose changes do NOT need a WebView reload; they are applied to
+     * the live browser by [applyLiveSetting] instead of prompting the user.
+     */
+    private val liveSettings = setOf(
+        PREF_LANDSCAPE,
+        PREF_MULTIWIN_MARGIN,
+        PREF_SUBTITLE_FONTSIZE,
+        PREF_DOWNLOAD_RETRY
+    )
 
     @SuppressLint("SourceLockedOrientationActivity", "ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewModel = ViewModelProvider(this)[BrowserViewModel::class.java]
+        settingsViewModel = ViewModelProvider(this)[SettingsViewModel::class.java]
         screenshotNotification = ScreenshotNotification(this)
         backPressCloseHandler = BackPressCloseHandler(this, true)
 
@@ -133,6 +153,8 @@ class BrowserActivity : ComponentActivity() {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
         }
 
+        subtitleFontSize.value = settingsViewModel.getSubtitleFontSize()
+
         manager = WebViewManager(this)
         manager?.setDataDirectorySuffix()
 
@@ -145,6 +167,8 @@ class BrowserActivity : ComponentActivity() {
                         errorText = errorText,
                         subtitleTextValue = subtitleTextValue,
                         closeButtonVisible = closeButtonVisible,
+                        subtitleFontSize = subtitleFontSize,
+                        multiwinMarginDp = multiwinMarginDp,
                         manager = manager,
                         onViewCreated = { mContentView = it },
                         intent = intent,
@@ -175,6 +199,8 @@ class BrowserActivity : ComponentActivity() {
                             PanelButton(id = R.drawable.kantai3d_icon, onClick = { isK3dDialogVisible.value = true })
                         }
                         PanelButton(id = R.drawable.exit_to_app, onClick = { showLogoutDialog() })
+                        // Settings sits second-last, just before the close button.
+                        PanelButton(id = R.drawable.settings, onClick = { settingsSheetVisible.value = true })
 
                         Spacer(modifier = Modifier.height(4.dp))
                         IconButton(onClick = { toolbarVisible.value = false }) {
@@ -190,6 +216,32 @@ class BrowserActivity : ComponentActivity() {
                                 isK3dDialogVisible.value = false
                             },
                             onDismiss = { isK3dDialogVisible.value = false }
+                        )
+                    }
+
+                    if (settingsSheetVisible.value) {
+                        SettingsBottomSheet(
+                            viewModel = settingsViewModel,
+                            onDismissRequest = { settingsSheetVisible.value = false },
+                            onSettingChanged = { key ->
+                                if (key in liveSettings) {
+                                    // Applied to the running browser; no reload needed.
+                                    applyLiveSetting(key)
+                                } else {
+                                    refreshPromptVisible.value = true
+                                }
+                            }
+                        )
+                    }
+
+                    if (refreshPromptVisible.value) {
+                        SettingsRefreshDialog(
+                            onRefreshNow = {
+                                refreshPromptVisible.value = false
+                                settingsSheetVisible.value = false
+                                refreshPageOrFinish()
+                            },
+                            onChangeWithoutRefresh = { refreshPromptVisible.value = false }
                         )
                     }
                 }
@@ -239,6 +291,61 @@ class BrowserActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Applies a setting that does not require a WebView reload.
+     *
+     * @param key one of [liveSettings]; others are ignored.
+     */
+    private fun applyLiveSetting(key: String) {
+        when (key) {
+            PREF_LANDSCAPE -> updateOrientationLock()
+            PREF_MULTIWIN_MARGIN -> updateMultiwindowMargin()
+            PREF_SUBTITLE_FONTSIZE -> subtitleFontSize.value = settingsViewModel.getSubtitleFontSize()
+            PREF_DOWNLOAD_RETRY -> {
+                // Read lazily by ResourceProcess right before each retry prompt,
+                // so nothing to do here.
+            }
+        }
+    }
+
+    /**
+     * Adds a small black margin on the side facing the split-screen divider so
+     * the divider does not overlap the game area. Re-implements the old
+     * setMultiwindowMargin() from the XML layout era using Compose state.
+     */
+    private fun updateMultiwindowMargin() {
+        val enabled = viewModel.sharedPref.getBoolean(PREF_MULTIWIN_MARGIN, false)
+        // isInMultiWindowMode() and split-screen only exist on API 24+.
+        if (!enabled || Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInMultiWindowMode()) {
+            multiwinMarginDp.value = 0
+            return
+        }
+
+        val windowRect = Rect()
+        val screenRect = Rect()
+        val decorView = window.decorView
+        decorView.getWindowVisibleDisplayFrame(windowRect)
+        decorView.getGlobalVisibleRect(screenRect)
+
+        // In split-screen mode at least one window edge is aligned with the
+        // screen edge; if none are, it is free-form mode and no bar is needed.
+        val isFreeform = windowRect.top != screenRect.top &&
+                windowRect.bottom != screenRect.bottom &&
+                windowRect.left != screenRect.left &&
+                windowRect.right != screenRect.right
+
+        multiwinMarginDp.value = if (isFreeform) {
+            0
+        } else {
+            val center = (screenRect.top + screenRect.bottom) / 2
+            when {
+                windowRect.top > center -> MULTIWIN_MARGIN_DP   // bottom half
+                windowRect.bottom < center -> MULTIWIN_MARGIN_DP // top half
+                else -> 0
+            }
+        }
+    }
+
     private fun setupSmoothPipAnimation() {
         val pipEnabled = viewModel.sharedPref.getBoolean(PREF_PIP_MODE, false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && supportsPiPMode() && pipEnabled) {
@@ -260,6 +367,16 @@ class BrowserActivity : ComponentActivity() {
     }
 
     fun handleBackPress() {
+        // Let the settings overlay handle back first so the user does not exit
+        // the app (or trigger the "press back again" prompt) while it is open.
+        if (refreshPromptVisible.value) {
+            refreshPromptVisible.value = false
+            return
+        }
+        if (settingsSheetVisible.value) {
+            settingsSheetVisible.value = false
+            return
+        }
         if (viewModel.isKcBrowserMode) {
             // Reveal the floating toolbar on back press, so the user can always
             // bring it back even when the edge-swipe reveal gesture is consumed
@@ -292,6 +409,18 @@ class BrowserActivity : ComponentActivity() {
         sendIsFrontChanged(false)
     }
 
+    @RequiresApi(Build.VERSION_CODES.N)
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        // Recompute the split-screen divider margin when entering/leaving split screen.
+        updateMultiwindowMargin()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateMultiwindowMargin()
+    }
+
     override fun onPause() {
         super.onPause()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInPictureInPictureMode) {
@@ -303,6 +432,7 @@ class BrowserActivity : ComponentActivity() {
         super.onResume()
         mContentView?.resumeTimers()
         sendIsFrontChanged(true)
+        updateMultiwindowMargin()
         mContentView?.let { manager?.runMuteScript(it, java.lang.Boolean.TRUE == viewModel.isMuteMode.value) }
         val rot = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             display?.rotation ?: Surface.ROTATION_0
@@ -448,6 +578,29 @@ fun PanelButton(id: Int, active: Boolean = false, onClick: () -> Unit) {
     }
 }
 
+// Prompts the user to reload the WebView after changing a setting.
+@Composable
+private fun SettingsRefreshDialog(
+    onRefreshNow: () -> Unit,
+    onChangeWithoutRefresh: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onChangeWithoutRefresh,
+        title = { Text(text = stringResource(id = R.string.settings_refresh_required_title)) },
+        text = { Text(text = stringResource(id = R.string.settings_refresh_required_msg)) },
+        confirmButton = {
+            TextButton(onClick = onRefreshNow) {
+                Text(text = stringResource(id = R.string.settings_refresh_now))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onChangeWithoutRefresh) {
+                Text(text = stringResource(id = R.string.settings_refresh_later))
+            }
+        }
+    )
+}
+
 // Compose replacement for the old k3d_form.xml dialog.
 @Composable
 private fun Kantai3dDialog(
@@ -502,6 +655,7 @@ fun BrowserOverlayLayer(
     showSubtitle: Boolean,
     subtitleText: String,
     subtitleVisible: Boolean,
+    subtitleFontSize: Int,
     isCapture: Boolean,
     closeButtonVisible: Boolean,
     onSubtitleTap: () -> Unit,
@@ -516,7 +670,7 @@ fun BrowserOverlayLayer(
                     text = subtitleText.ifEmpty { stringResource(id = R.string.subtitle_default) },
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
+                    fontSize = subtitleFontSize.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.clickable { onSubtitleTap() }
                 )
@@ -552,6 +706,8 @@ fun BrowserScreenContent(
     errorText: MutableState<String>,
     subtitleTextValue: MutableState<String>,
     closeButtonVisible: MutableState<Boolean>,
+    subtitleFontSize: MutableState<Int>,
+    multiwinMarginDp: MutableState<Int>,
     manager: WebViewManager?,
     onViewCreated: (WebViewL) -> Unit,
     intent: Intent?,
@@ -625,6 +781,9 @@ fun BrowserScreenContent(
                 },
                 modifier = Modifier
                     .size(width = finalWidth, height = finalHeight)
+                    // Leave room for the split-screen divider so it does not
+                    // overlap the game area (see BrowserActivity#updateMultiwindowMargin).
+                    .padding(top = multiwinMarginDp.value.dp, bottom = multiwinMarginDp.value.dp)
                     .background(Color.Black)
                     .clickable(enabled = false) { } // Prevent clicks on WebView from toggling panel
             )
@@ -650,6 +809,7 @@ fun BrowserScreenContent(
             showSubtitle = viewModel.isKcBrowserMode && isCaption,
             subtitleText = currentSubtitle,
             subtitleVisible = subtitleVisible.value,
+            subtitleFontSize = subtitleFontSize.value,
             isCapture = isCapture,
             closeButtonVisible = closeButtonVisible.value,
             onSubtitleTap = { subtitleVisible.value = false },
@@ -683,6 +843,7 @@ fun BrowserScreenPreview() {
                 showSubtitle = true,
                 subtitleText = "Sample subtitle text",
                 subtitleVisible = true,
+                subtitleFontSize = 18,
                 isCapture = true,
                 closeButtonVisible = false,
                 onSubtitleTap = {},
@@ -698,6 +859,7 @@ fun BrowserScreenPreview() {
                 PanelButton(id = R.drawable.light_mode, onClick = {})
                 PanelButton(id = R.drawable.caption_icon, active = true, onClick = {})
                 PanelButton(id = R.drawable.exit_to_app, onClick = {})
+                PanelButton(id = R.drawable.settings, onClick = {})
                 Spacer(modifier = Modifier.height(4.dp))
                 IconButton(onClick = {}) {
                     Icon(painterResource(id = R.drawable.close_icon), "Close", tint = Color.White)
