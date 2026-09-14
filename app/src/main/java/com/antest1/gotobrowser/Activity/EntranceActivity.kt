@@ -147,8 +147,7 @@ fun EntranceScreen(viewModel: EntranceViewModel) {
             }
         },
         onCacheClearClick = { showCacheClearDialog(context, viewModel) },
-        onManualClick = { openManual(context) },
-        onSettingsClick = { openSettings(context) }
+        onManualClick = { openManual(context) }
     )
 
     if (showLoginForm) {
@@ -181,8 +180,7 @@ fun EntranceScreenContent(
     onPanelChange: (Boolean) -> Unit,
     onStartClick: () -> Unit,
     onCacheClearClick: () -> Unit,
-    onManualClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onManualClick: () -> Unit
 ) {
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -320,7 +318,7 @@ fun EntranceScreenContent(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // Top-right buttons (manual / settings) as a lightweight overlay
+            // Top-right manual button as a lightweight overlay
             Row(
                 modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -329,13 +327,6 @@ fun EntranceScreenContent(
                     Icon(
                         painter = painterResource(id = R.drawable.help_icon),
                         contentDescription = "Manual",
-                        tint = Color.White
-                    )
-                }
-                IconButton(onClick = onSettingsClick) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.settings),
-                        contentDescription = "Settings",
                         tint = Color.White
                     )
                 }
@@ -377,8 +368,7 @@ fun EntranceScreenPreview() {
             onPanelChange = {},
             onStartClick = {},
             onCacheClearClick = {},
-            onManualClick = {},
-            onSettingsClick = {}
+            onManualClick = {}
         )
     }
 }
@@ -399,8 +389,7 @@ fun EntranceScreenLandscapePreview() {
             onPanelChange = {},
             onStartClick = {},
             onCacheClearClick = {},
-            onManualClick = {},
-            onSettingsClick = {}
+            onManualClick = {}
         )
     }
 }
@@ -484,12 +473,6 @@ private fun LoginFormDialog(
             }
         }
     )
-}
-
-private fun openSettings(context: Context) {
-    val intent = Intent(context, SettingsActivity::class.java)
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    context.startActivity(intent)
 }
 
 private fun openManual(context: Context) {
