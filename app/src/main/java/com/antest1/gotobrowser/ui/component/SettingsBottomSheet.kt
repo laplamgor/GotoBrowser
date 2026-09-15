@@ -113,11 +113,12 @@ private data class ListOption(val value: String, val title: String, val summary:
 
 enum class SettingsScreen {
     MAIN,
-    BROWSER,
+    DISPLAY,
+    CONTROL,
+    DOWNLOAD,
     SUBTITLE,
-    CONNECTION,
+    CONNECTION_LOGIN,
     MODS,
-    LOGIN,
     APP_INFO
 }
 
@@ -174,11 +175,12 @@ fun SettingsBottomSheet(
             Text(
                 text = when (currentScreen) {
                     SettingsScreen.MAIN -> stringResource(R.string.settings_menu_tooltip)
-                    SettingsScreen.BROWSER -> stringResource(R.string.settings_browsersettings)
+                    SettingsScreen.DISPLAY -> stringResource(R.string.settings_display_label)
+                    SettingsScreen.CONTROL -> stringResource(R.string.settings_control_label)
+                    SettingsScreen.DOWNLOAD -> stringResource(R.string.settings_download_label)
                     SettingsScreen.SUBTITLE -> stringResource(R.string.settings_subtitle_label)
-                    SettingsScreen.CONNECTION -> stringResource(R.string.setting_connection)
+                    SettingsScreen.CONNECTION_LOGIN -> stringResource(R.string.settings_connection_login_label)
                     SettingsScreen.MODS -> stringResource(R.string.settings_mod_label)
-                    SettingsScreen.LOGIN -> stringResource(R.string.selected_server)
                     SettingsScreen.APP_INFO -> stringResource(R.string.settings_appinfo_label)
                 },
                 style = MaterialTheme.typography.titleLarge,
@@ -273,23 +275,28 @@ fun SettingsContent(
         when (currentScreen) {
             SettingsScreen.MAIN -> {
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.selected_server)) },
-                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.LOGIN) }
+                    headlineContent = { Text(stringResource(R.string.settings_connection_login_label)) },
+                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.CONNECTION_LOGIN) }
                 )
                 HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_browsersettings)) },
-                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.BROWSER) }
+                    headlineContent = { Text(stringResource(R.string.settings_display_label)) },
+                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.DISPLAY) }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_control_label)) },
+                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.CONTROL) }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_download_label)) },
+                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.DOWNLOAD) }
                 )
                 HorizontalDivider()
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.settings_subtitle_label)) },
                     modifier = Modifier.clickable { onScreenChanged(SettingsScreen.SUBTITLE) }
-                )
-                HorizontalDivider()
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.setting_connection)) },
-                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.CONNECTION) }
                 )
                 HorizontalDivider()
                 ListItem(
@@ -303,14 +310,20 @@ fun SettingsContent(
                 )
                 HorizontalDivider()
             }
-            SettingsScreen.BROWSER -> {
-                BrowserSettingsSection(viewModel, onSettingChanged)
+            SettingsScreen.DISPLAY -> {
+                DisplaySection(viewModel, onSettingChanged)
+            }
+            SettingsScreen.CONTROL -> {
+                ControlSection(viewModel, onSettingChanged)
+            }
+            SettingsScreen.DOWNLOAD -> {
+                DownloadSection(viewModel, onSettingChanged)
             }
             SettingsScreen.SUBTITLE -> {
                 SubtitleSection(viewModel, subtitleSummary, subtitleEnabled, onSettingChanged)
             }
-            SettingsScreen.CONNECTION -> {
-                ConnectionSection(viewModel, snackbarHostState, onSettingChanged)
+            SettingsScreen.CONNECTION_LOGIN -> {
+                ConnectionLoginSection(viewModel, snackbarHostState, onSettingChanged)
             }
             SettingsScreen.MODS -> {
                 ModsSection(
@@ -321,9 +334,6 @@ fun SettingsContent(
                     patchEnabledState = patchEnabled,
                     onSettingChanged = onSettingChanged
                 )
-            }
-            SettingsScreen.LOGIN -> {
-                LoginSettingsSection(viewModel, onSettingChanged)
             }
             SettingsScreen.APP_INFO -> {
                 AppInfoSection(viewModel, activity, snackbarHostState, onDismissRequest, onSettingChanged)
@@ -338,20 +348,42 @@ fun SettingsContent(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun BrowserSettingsSection(viewModel: SettingsViewModel?, onSettingChanged: (String) -> Unit) {
-    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
-    SwitchRow(viewModel, PREF_LANDSCAPE, R.string.mode_landscape, R.string.settings_recommended_summary, onSettingChanged = onSettingChanged)
+private fun DisplaySection(viewModel: SettingsViewModel?, onSettingChanged: (String) -> Unit) {
+    SwitchRow(viewModel, PREF_LANDSCAPE, R.string.mode_landscape, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_ADJUSTMENT, R.string.mode_adjustment, R.string.settings_recommended_summary, defaultValue = true, onSettingChanged = onSettingChanged)
-    SwitchRow(viewModel, PREF_FONT_PREFETCH, R.string.browser_fontprefetch, R.string.settings_recommended_summary, defaultValue = true, onSettingChanged = onSettingChanged)
-    SwitchRow(viewModel, PREF_USE_EXTCACHE, R.string.settings_use_external_dir, R.string.settings_recommended_summary,
-        onChanged = { if (!isPreview) viewModel!!.onExternalCacheChanged() }, onSettingChanged = onSettingChanged)
-    SwitchRow(viewModel, PREF_KEYBOARD, R.string.mode_enable_keyboard, defaultValue = true, onSettingChanged = onSettingChanged)
-    ListRow(viewModel, PREF_CURSOR_MODE, R.string.setting_cursor_mode, cursorModeOptions(), onSettingChanged = onSettingChanged)
-    SwitchRow(viewModel, PREF_DISABLE_REFRESH_DIALOG, R.string.browser_disable_refresh_dialog, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_PIP_MODE, R.string.browser_enablepipmode, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_MULTIWIN_MARGIN, R.string.settings_mw_margin, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_LEGACY_RENDERER, R.string.settings_legacy_renderer_enable,
-        R.string.settings_legacy_renderer_summary, onChanged = { if (!isPreview) viewModel!!.onLegacyRendererChanged() }, onSettingChanged = onSettingChanged)
+        R.string.settings_legacy_renderer_summary, onChanged = { onLegacyRendererChanged(viewModel) }, onSettingChanged = onSettingChanged)
+}
+
+@Composable
+private fun ControlSection(viewModel: SettingsViewModel?, onSettingChanged: (String) -> Unit) {
+    SwitchRow(viewModel, PREF_KEYBOARD, R.string.mode_enable_keyboard, defaultValue = true, onSettingChanged = onSettingChanged)
+    ListRow(viewModel, PREF_CURSOR_MODE, R.string.setting_cursor_mode, cursorModeOptions(), onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_DISABLE_REFRESH_DIALOG, R.string.browser_disable_refresh_dialog, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_PANELSTART, R.string.mode_show_panel, defaultValue = true, onSettingChanged = onSettingChanged)
+}
+
+@Composable
+private fun DownloadSection(viewModel: SettingsViewModel?, onSettingChanged: (String) -> Unit) {
+    val context = LocalContext.current
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
+    SwitchRow(viewModel, PREF_USE_EXTCACHE, R.string.settings_use_external_dir, R.string.settings_recommended_summary,
+        onChanged = { if (!isPreview) viewModel!!.onExternalCacheChanged() }, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_FONT_PREFETCH, R.string.browser_fontprefetch, R.string.settings_recommended_summary, defaultValue = true, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_DOWNLOAD_RETRY, R.string.settings_retry_enable, R.string.settings_retry_summary,
+        onSettingChanged = onSettingChanged)
+    ClickRow(
+        title = R.string.cache_clear_text,
+        summary = R.string.clearcache_msg,
+        onClick = {
+            if (!isPreview) {
+                viewModel!!.clearBrowserCache()
+                KcUtils.showToast(context.applicationContext, R.string.cache_cleared_toast)
+            }
+        }
+    )
 }
 
 @Composable
@@ -392,9 +424,104 @@ private fun SubtitleSection(viewModel: SettingsViewModel?, subtitleSummary: Stri
 }
 
 @Composable
-private fun ConnectionSection(viewModel: SettingsViewModel?, snackbarHostState: SnackbarHostState, onSettingChanged: (String) -> Unit) {
+private fun ConnectionLoginSection(viewModel: SettingsViewModel?, snackbarHostState: SnackbarHostState, onSettingChanged: (String) -> Unit) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
+    var showLoginForm by remember { mutableStateOf(false) }
+
+    // --- Login ---------------------------------------------------------------
+    SectionHeader(R.string.settings_login_section_header)
+
+    ClickRow(
+        title = R.string.autocomplete_title,
+        summary = R.string.autocomplete_msg,
+        onClick = { showLoginForm = true }
+    )
+
+    if (showLoginForm) {
+        LoginFormDialog(
+            initialId = if (isPreview) "" else viewModel!!.getString(PREF_DMM_ID, ""),
+            initialPassword = if (isPreview) "" else viewModel!!.getString(PREF_DMM_PASS, ""),
+            onSave = { loginId, loginPassword ->
+                if (!isPreview) {
+                    viewModel!!.setString(PREF_DMM_ID, loginId)
+                    viewModel!!.setString(PREF_DMM_PASS, loginPassword)
+                }
+                showLoginForm = false
+                onSettingChanged(PREF_DMM_ID)
+            },
+            onDismiss = { showLoginForm = false }
+        )
+    }
+
+    // Shown when the user switches to an unofficial connector for the first time.
+    var showDisclaimer by remember { mutableStateOf(false) }
+    // Shown when the user disables broadcast while Kcanotify is installed.
+    var showKcanotifyWarning by remember { mutableStateOf(false) }
+
+    var connector by remember { mutableStateOf(if (isPreview) CONN_DMM else viewModel!!.getString(PREF_CONNECTOR, CONN_DMM)) }
+
+    ListRow(
+        viewModel, PREF_CONNECTOR, R.string.select_server, connectorOptions(),
+        onSelected = { value ->
+            connector = value
+            if (!isPreview) {
+                // Point the session at the new connector's start page and let the
+                // user know which URL that resolves to.
+                val index = connectorOptions().indexOfFirst { it.value == value }
+                if (index in URL_LIST.indices) {
+                    viewModel!!.setString(PREF_LATEST_URL, URL_LIST[index])
+                    KcUtils.showToast(context.applicationContext, URL_LIST[index])
+                }
+                // Unofficial connectors serve resources that differ from DMM's,
+                // so make sure the user acknowledges that once.
+                if (value != CONN_DMM && !viewModel.getBoolean(PREF_TP_DISCLAIMED, false)) {
+                    showDisclaimer = true
+                }
+            }
+            true
+        },
+        onSettingChanged = onSettingChanged
+    )
+
+    if (showDisclaimer) {
+        ThirdPartyConnectorDialog(
+            onAccept = {
+                if (!isPreview) viewModel!!.setBoolean(PREF_TP_DISCLAIMED, true)
+                showDisclaimer = false
+            },
+            onDismiss = { showDisclaimer = false }
+        )
+    }
+
+    if (showKcanotifyWarning) {
+        KcanotifyBroadcastDialog(
+            onAccept = {
+                if (!isPreview) viewModel!!.setBoolean(PREF_BROADCAST, true)
+                showKcanotifyWarning = false
+            },
+            onDismiss = { showKcanotifyWarning = false }
+        )
+    }
+
+    // The silent mode only works with the official DMM connector.
+    SwitchRow(viewModel, PREF_SILENT, R.string.mode_silent, enabled = connector == CONN_DMM, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_BROADCAST, R.string.mode_broadcast, R.string.mode_broadcast_summary, defaultValue = true,
+        onChanged = {
+            if (!isPreview && !viewModel!!.getBoolean(PREF_BROADCAST, true)
+                && KcUtils.isKcanotifyInstalled(context.applicationContext)) {
+                showKcanotifyWarning = true
+            }
+        },
+        onSettingChanged = onSettingChanged)
+
+    // --- Gadget Block Bypass -------------------------------------------------
+    // The bypass only exists to make the login above succeed on blocked IPs, so
+    // it lives in the same screen, separated by a header instead of another
+    // navigation level.
+    SectionHeader(R.string.settings_bypass_section_header)
+
     SwitchRow(viewModel, PREF_ALTER_GADGET, R.string.connection_use_alter, R.string.connection_use_alter_summary,
         onSettingChanged = onSettingChanged)
 
@@ -444,9 +571,6 @@ private fun ConnectionSection(viewModel: SettingsViewModel?, snackbarHostState: 
             onDismiss = { showEndpointDialog = false }
         )
     }
-
-    SwitchRow(viewModel, PREF_DOWNLOAD_RETRY, R.string.settings_retry_enable, R.string.settings_retry_summary,
-        onSettingChanged = onSettingChanged)
 }
 
 @Composable
@@ -503,108 +627,6 @@ private fun ModsSection(
         summaryText = patchUrl,
         enabled = patchEnabled,
         onClick = { openUrl(context, patchUrl) }
-    )
-}
-
-@Composable
-private fun LoginSettingsSection(viewModel: SettingsViewModel?, onSettingChanged: (String) -> Unit) {
-    val context = LocalContext.current
-    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
-    var showLoginForm by remember { mutableStateOf(false) }
-
-    ClickRow(
-        title = R.string.autocomplete_title,
-        summary = R.string.autocomplete_msg,
-        onClick = { showLoginForm = true }
-    )
-
-    if (showLoginForm) {
-        LoginFormDialog(
-            initialId = if (isPreview) "" else viewModel!!.getString(PREF_DMM_ID, ""),
-            initialPassword = if (isPreview) "" else viewModel!!.getString(PREF_DMM_PASS, ""),
-            onSave = { loginId, loginPassword ->
-                if (!isPreview) {
-                    viewModel!!.setString(PREF_DMM_ID, loginId)
-                    viewModel!!.setString(PREF_DMM_PASS, loginPassword)
-                }
-                showLoginForm = false
-                onSettingChanged(PREF_DMM_ID)
-            },
-            onDismiss = { showLoginForm = false }
-        )
-    }
-
-    var connector by remember { mutableStateOf(if (isPreview) CONN_DMM else viewModel!!.getString(PREF_CONNECTOR, CONN_DMM)) }
-
-    // Shown when the user switches to an unofficial connector for the first time.
-    var showDisclaimer by remember { mutableStateOf(false) }
-    // Shown when the user disables broadcast while Kcanotify is installed.
-    var showKcanotifyWarning by remember { mutableStateOf(false) }
-
-    ListRow(
-        viewModel, PREF_CONNECTOR, R.string.select_server, connectorOptions(),
-        onSelected = { value ->
-            connector = value
-            if (!isPreview) {
-                // Point the session at the new connector's start page and let the
-                // user know which URL that resolves to.
-                val index = connectorOptions().indexOfFirst { it.value == value }
-                if (index in URL_LIST.indices) {
-                    viewModel!!.setString(PREF_LATEST_URL, URL_LIST[index])
-                    KcUtils.showToast(context.applicationContext, URL_LIST[index])
-                }
-                // Unofficial connectors serve resources that differ from DMM's,
-                // so make sure the user acknowledges that once.
-                if (value != CONN_DMM && !viewModel.getBoolean(PREF_TP_DISCLAIMED, false)) {
-                    showDisclaimer = true
-                }
-            }
-            true
-        },
-        onSettingChanged = onSettingChanged
-    )
-
-    if (showDisclaimer) {
-        ThirdPartyConnectorDialog(
-            onAccept = {
-                if (!isPreview) viewModel!!.setBoolean(PREF_TP_DISCLAIMED, true)
-                showDisclaimer = false
-            },
-            onDismiss = { showDisclaimer = false }
-        )
-    }
-
-    if (showKcanotifyWarning) {
-        KcanotifyBroadcastDialog(
-            onAccept = {
-                if (!isPreview) viewModel!!.setBoolean(PREF_BROADCAST, true)
-                showKcanotifyWarning = false
-            },
-            onDismiss = { showKcanotifyWarning = false }
-        )
-    }
-
-    // The silent mode only works with the official DMM connector.
-    SwitchRow(viewModel, PREF_SILENT, R.string.mode_silent, enabled = connector == CONN_DMM, onSettingChanged = onSettingChanged)
-    SwitchRow(viewModel, PREF_BROADCAST, R.string.mode_broadcast, defaultValue = true,
-        onChanged = {
-            if (!isPreview && !viewModel!!.getBoolean(PREF_BROADCAST, true)
-                && KcUtils.isKcanotifyInstalled(context.applicationContext)) {
-                showKcanotifyWarning = true
-            }
-        },
-        onSettingChanged = onSettingChanged)
-    SwitchRow(viewModel, PREF_PANELSTART, R.string.mode_show_panel, defaultValue = true, onSettingChanged = onSettingChanged)
-
-    ClickRow(
-        title = R.string.cache_clear_text,
-        summary = R.string.clearcache_msg,
-        onClick = {
-            if (!isPreview) {
-                viewModel!!.clearBrowserCache()
-                KcUtils.showToast(context.applicationContext, R.string.cache_cleared_toast)
-            }
-        }
     )
 }
 
@@ -668,6 +690,28 @@ private fun AppInfoSection(
 // ---------------------------------------------------------------------------
 // Reusable rows
 // ---------------------------------------------------------------------------
+
+/**
+ * Non-interactive label used to group rows inside a single settings screen, so
+ * related settings can stay together without adding another navigation level.
+ */
+@Composable
+private fun SectionHeader(titleRes: Int) {
+    ListItem(
+        headlineContent = {
+            Text(
+                text = stringResource(titleRes),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    )
+}
+
+/** Preview-safe wrapper so rows can call the view model hook directly. */
+private fun onLegacyRendererChanged(viewModel: SettingsViewModel?) {
+    viewModel?.onLegacyRendererChanged()
+}
 
 @Composable
 private fun SwitchRow(

@@ -9,13 +9,15 @@
     <string name="select_server_toast">接続方式を先に選択してください。</string>
     <string name="cache_clear_text">キャッシュ削除</string>
     <string name="cache_cleared_toast">WebViewのキャッシュを削除しました。</string>
-    <string name="clearcache_msg">画像や音声などが正しく表示されない場合にのみ使用してください。本当にキャッシュを削除しますか？</string>
+    <string name="clearcache_msg">画像や音声が正しく読み込まれない場合や、ログイン方法を切り替える場合に使用してください。削除後は再度ログインが必要になることがあります。</string>
+    <string name="thirdpartyconnector_msg">非公式のWebプロキシ型コネクタ（OOIなど）の場合、その方針によってゲームリソースが本来のものと異なることがあります。GotoBrowserは各コネクタの方針を関知しません。非公式のリソースを表示したくない場合は、キャッシュを削除してDMM Directでプレイしてください。</string>
     <string name="backpress_msg">もう一度押すと終了します</string>
     <string name="refresh_msg">リフレッシュしますか？</string>
-    <string name="mode_landscape">横固定モード</string>
+    <string name="mode_landscape">横向きのみ</string>
     <string name="mode_adjustment">レイアウト自動調整</string>
     <string name="mode_silent">音量OFFでスタート</string>
     <string name="mode_broadcast">ブロードキャストモード</string>
+    <string name="mode_broadcast_summary">GotoBrowserをKcanotifyと一緒に使用する</string>
     <string name="mode_show_panel">起動時にパネルを表示</string>
     <string name="mode_enable_keyboard">キーボード入力を有効に</string>
     <string name="button_start">スタート</string>
@@ -27,6 +29,12 @@
     <string name="settings_version_label">現在のバージョン</string>
     <string name="settings_version_check">更新の確認</string>
     <string name="settings_recommended_summary">おすすめ</string>
+    <string name="settings_display_label">表示</string>
+    <string name="settings_control_label">操作</string>
+    <string name="settings_download_label">キャッシュ</string>
+    <string name="settings_connection_login_label">ログインと接続</string>
+    <string name="settings_login_section_header">ログイン</string>
+    <string name="settings_bypass_section_header">国外ブロックのバイパス</string>
     <string name="settings_subtitle_label">字幕設定</string>
     <string name="settings_subtitle_fontsize" >フォントサイズ</string>
     <string name="settings_subtitle_example" formatted="false">字幕テキスト：%d</string>
@@ -37,7 +45,6 @@
     <string name="setting_latest_version">最新バージョンです。</string>
     <string name="setting_latest_download" formatted="false">アップデートがあります。(%s)\nダウンロードしますか？</string>
     <string name="setting_latest_download_subtitle" formatted="false">アップデートがあります。(%s)</string>
-    <string name="settings_browsersettings">ブラウザ設定</string>
     <string name="browser_fontprefetch">フォントをプリロード</string>
     <string name="browser_enablepipmode">PIPモードを有効にする</string>
     <string name="browser_disable_refresh_dialog">再読み込み確認を無効にする</string>
