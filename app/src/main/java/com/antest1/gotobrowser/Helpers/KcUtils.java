@@ -21,6 +21,7 @@ import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.View;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -386,6 +387,19 @@ public class KcUtils {
     }
 
     public static void requestLatestAppVersion(Activity ac, GotoVersionCheck appCheck, boolean show_toast) {
+        requestLatestAppVersion(ac, appCheck, show_toast, null);
+    }
+
+    /**
+     * Checks the latest release.
+     *
+     * @param onMessage when non-null, the outcome text is delivered here instead
+     *        of being shown in the activity's window. This lets a host that owns
+     *        its own surface (e.g. a modal bottom sheet in its own window) display
+     *        the message where the user can actually see it.
+     */
+    public static void requestLatestAppVersion(Activity ac, GotoVersionCheck appCheck,
+                                               boolean show_toast, MessageCallback onMessage) {
         Call<JsonObject> call = appCheck.version();
         call.enqueue(new Callback<JsonObject>() {
             @Override
@@ -393,26 +407,49 @@ public class KcUtils {
                                    @NonNull retrofit2.Response<JsonObject> response) {
                 Log.e("GOTO", response.headers().toString());
                 if (response.code() == 200) {
-                    checkAppUpdate(ac, response, show_toast);
+                    checkAppUpdate(ac, response, show_toast, onMessage);
                 } else {
                     String message = "HTTP: " + response.code();
                     if (response.code() == 404) message = "No update found.";
-                    Snackbar.make(ac.findViewById(android.R.id.content),
-                            message, Snackbar.LENGTH_LONG).show();
+                    report(ac, message, onMessage);
                 }
             }
 
             @Override
             public void onFailure(@NonNull Call<JsonObject> call, @NonNull Throwable t) {
-                Snackbar.make(ac.findViewById(android.R.id.content),
-                        String.valueOf(t.getLocalizedMessage()), Snackbar.LENGTH_LONG).show();
+                report(ac, String.valueOf(t.getLocalizedMessage()), onMessage);
             }
         });
     }
 
+    /** Delivers the message to the callback when present, else to the window. */
+    private static void report(Activity ac, String message, MessageCallback onMessage) {
+        if (onMessage != null) {
+            onMessage.onMessage(message);
+        } else {
+            showMessage(ac, message);
+        }
+    }
+
+    /**
+     * Shows a message to the user, preferring the activity's window but falling
+     * back to a plain toast when the content view is not available yet (e.g. the
+     * check fires before the activity has set its content view).
+     */
+    private static void showMessage(Activity ac, String message) {
+        if (ac.isFinishing() || ac.isDestroyed()) return;
+        View content = ac.findViewById(android.R.id.content);
+        if (content != null) {
+            Snackbar.make(content, message, Snackbar.LENGTH_LONG).show();
+        } else {
+            showToast(ac.getApplicationContext(), message);
+        }
+    }
+
     private static void checkAppUpdate(Activity ac,
                                        retrofit2.Response<JsonObject> response,
-                                       boolean show_toast) {
+                                       boolean show_toast,
+                                       MessageCallback onMessage) {
         JsonObject version_info = response.body();
         if (version_info != null && version_info.has("tag_name")) {
             Log.e("GOTO", version_info.toString());
@@ -421,16 +458,18 @@ public class KcUtils {
                     "https://luckyjervis.com/GotoBrowser/apk_download.php?q=%s", tag);
             if (BuildConfig.VERSION_NAME.equals(tag)) {
                 if (show_toast)
-                    Snackbar.make(ac.findViewById(android.R.id.content),
-                            R.string.setting_latest_version, Snackbar.LENGTH_LONG).show();
+                    report(ac, ac.getString(R.string.setting_latest_version), onMessage);
             } else {
-                showAppUpdateDownloadDialog(ac, tag, latest_file);
+                // A newer release exists: the dialog must be shown, so it stays
+                // on the activity's window even when a message callback is set.
+                showAppUpdateDownloadDialog(ac, tag, latest_file, onMessage);
             }
         }
     }
 
-    private static void showAppUpdateDownloadDialog(Activity ac, String tag, String latest_file) {
-        if (!ac.isFinishing()) {
+    private static void showAppUpdateDownloadDialog(Activity ac, String tag, String latest_file,
+                                                    MessageCallback onMessage) {
+        if (!ac.isFinishing() && !ac.isDestroyed()) {
             MaterialAlertDialogBuilder alertDialogBuilder = new MaterialAlertDialogBuilder(ac);
             alertDialogBuilder.setTitle(ac.getString(R.string.app_name));
             alertDialogBuilder
@@ -441,6 +480,10 @@ public class KcUtils {
                                 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(latest_file));
                                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                                 ac.startActivity(intent);
+                                dialog.dismiss();
+                                // The sheet stays open behind the dialog, so tell it
+                                // to close now that the user is leaving to download.
+                                if (onMessage != null) onMessage.onMessage(null);
                             })
                     .setNegativeButton(R.string.action_cancel,
                             (dialog, id) -> dialog.cancel());

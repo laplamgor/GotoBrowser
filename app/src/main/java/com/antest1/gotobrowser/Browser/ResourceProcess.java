@@ -17,7 +17,6 @@ import android.webkit.WebResourceResponse;
 import android.widget.TextView;
 
 import com.antest1.gotobrowser.Activity.BrowserActivity;
-import com.antest1.gotobrowser.Activity.EntranceActivity;
 import com.antest1.gotobrowser.Helpers.CritPatcher;
 import com.antest1.gotobrowser.Helpers.FpsPatcher;
 import com.antest1.gotobrowser.Helpers.K3dPatcher;
@@ -475,8 +474,6 @@ public class ResourceProcess {
         activity.runOnUiThread(() -> {
             DialogInterface.OnClickListener dialogClickListener = (dialog, which) -> {
                 if (which == DialogInterface.BUTTON_POSITIVE) {
-                    Intent intent = new Intent(activity, EntranceActivity.class);
-                    activity.startActivity(intent);
                     activity.finish();
                 }
                 dialog.dismiss();
