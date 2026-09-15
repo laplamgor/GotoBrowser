@@ -46,6 +46,12 @@ public class BrowserViewModel extends AndroidViewModel {
 
     private List<String> connectorInfo = new ArrayList<>();
 
+    /**
+     * Set once the start-up app update check has been requested, so it runs
+     * exactly once per process instead of on every activity recreation.
+     */
+    private boolean appUpdateCheckStarted = false;
+
     public BrowserViewModel(@NonNull Application application) {
         super(application);
         sharedPref = application.getSharedPreferences(application.getString(R.string.preference_key), Context.MODE_PRIVATE);
@@ -123,4 +129,7 @@ public class BrowserViewModel extends AndroidViewModel {
 
     public boolean isSubtitleLoaded() { return Boolean.TRUE.equals(isSubtitleLoaded.getValue()); }
     public void setSubtitleLoaded(boolean value) { isSubtitleLoaded.setValue(value); }
+
+    public boolean isAppUpdateCheckStarted() { return appUpdateCheckStarted; }
+    public void setAppUpdateCheckStarted(boolean value) { appUpdateCheckStarted = value; }
 }

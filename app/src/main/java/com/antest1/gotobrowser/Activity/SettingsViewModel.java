@@ -17,6 +17,7 @@ import com.antest1.gotobrowser.BuildConfig;
 import com.antest1.gotobrowser.Helpers.GotoVersionCheck;
 import com.antest1.gotobrowser.Helpers.KcEnUtils;
 import com.antest1.gotobrowser.Helpers.KcUtils;
+import com.antest1.gotobrowser.Helpers.MessageCallback;
 import com.antest1.gotobrowser.Helpers.VersionDatabase;
 import com.antest1.gotobrowser.R;
 import com.antest1.gotobrowser.Subtitle.SubtitleProviderUtils;
@@ -229,6 +230,10 @@ public class SettingsViewModel extends AndroidViewModel {
 
     public void checkAppUpdate(android.app.Activity activity) {
         KcUtils.requestLatestAppVersion(activity, appCheck, true);
+    }
+
+    public void checkAppUpdate(android.app.Activity activity, MessageCallback onMessage) {
+        KcUtils.requestLatestAppVersion(activity, appCheck, true, onMessage);
     }
 
     public void clearBrowserCache() {

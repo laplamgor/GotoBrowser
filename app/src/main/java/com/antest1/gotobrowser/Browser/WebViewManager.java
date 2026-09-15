@@ -6,7 +6,6 @@ import static com.antest1.gotobrowser.Constants.*;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -26,14 +25,12 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.ImageView;
 
 import androidx.webkit.ProxyConfig;
 import androidx.webkit.ProxyController;
 import androidx.webkit.WebViewFeature;
 
 import com.antest1.gotobrowser.Activity.BrowserActivity;
-import com.antest1.gotobrowser.Activity.EntranceActivity;
 import com.antest1.gotobrowser.BuildConfig;
 import com.antest1.gotobrowser.Constants;
 import com.antest1.gotobrowser.Helpers.KcUtils;
@@ -282,8 +279,6 @@ public class WebViewManager {
     }
 
     public void closeWebView() {
-        Intent intent = new Intent(activity, EntranceActivity.class);
-        activity.startActivity( intent);
         activity.finish();
     }
 

@@ -38,6 +38,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -66,6 +67,9 @@ import com.antest1.gotobrowser.Constants.PREF_ALTER_ENDPOINT
 import com.antest1.gotobrowser.Constants.PREF_ALTER_GADGET
 import com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD
 import com.antest1.gotobrowser.Constants.PREF_BROADCAST
+import com.antest1.gotobrowser.Constants.CONN_DMM
+import com.antest1.gotobrowser.Constants.CONN_KANMOE
+import com.antest1.gotobrowser.Constants.CONN_OOI
 import com.antest1.gotobrowser.Constants.PREF_CONNECTOR
 import com.antest1.gotobrowser.Constants.PREF_CURSOR_MODE
 import com.antest1.gotobrowser.Constants.PREF_DEVTOOLS_DEBUG
@@ -88,7 +92,10 @@ import com.antest1.gotobrowser.Constants.PREF_PIP_MODE
 import com.antest1.gotobrowser.Constants.PREF_SILENT
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_FONTSIZE
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_LOCALE
+import com.antest1.gotobrowser.Constants.PREF_TP_DISCLAIMED
 import com.antest1.gotobrowser.Constants.PREF_USE_EXTCACHE
+import com.antest1.gotobrowser.Constants.PREF_LATEST_URL
+import com.antest1.gotobrowser.Constants.URL_LIST
 import com.antest1.gotobrowser.Helpers.KcUtils
 import com.antest1.gotobrowser.R
 import kotlinx.coroutines.launch
@@ -121,11 +128,16 @@ enum class SettingsScreen {
  * to a different activity. Every preference mutation is surfaced through
  * [onSettingChanged] with the changed preference key, leaving the host to decide
  * whether the change can be applied live or needs a WebView reload.
+ *
+ * @param activity host activity, used for actions that need a window (dialogs,
+ *        snackbars). The sheet renders in its own window, so it cannot be
+ *        resolved from [LocalContext] and must be supplied by the host.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsBottomSheet(
     viewModel: SettingsViewModel?,
+    activity: android.app.Activity?,
     onDismissRequest: () -> Unit,
     onSettingChanged: (String) -> Unit
 ) {
@@ -193,14 +205,27 @@ fun SettingsBottomSheet(
             },
             label = "SettingsScreenTransition"
         ) { screen ->
-            SettingsContent(
-                viewModel = viewModel,
-                snackbarHostState = snackbarHostState,
-                currentScreen = screen,
-                onScreenChanged = { currentScreen = it },
-                modifier = Modifier.fillMaxWidth(),
-                onSettingChanged = onSettingChanged
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                SettingsContent(
+                    viewModel = viewModel,
+                    activity = activity,
+                    snackbarHostState = snackbarHostState,
+                    currentScreen = screen,
+                    onScreenChanged = { currentScreen = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    onDismissRequest = onDismissRequest,
+                    onSettingChanged = onSettingChanged
+                )
+                // Rendered inside the sheet so its messages appear above the
+                // sheet's own window rather than behind it. Padding keeps it
+                // clear of the last settings row.
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 16.dp, vertical = 24.dp)
+                )
+            }
         }
     }
 }
@@ -218,10 +243,12 @@ private fun Int.withDp() = this.dp
 @Composable
 fun SettingsContent(
     viewModel: SettingsViewModel?,
+    activity: android.app.Activity?,
     snackbarHostState: SnackbarHostState,
     currentScreen: SettingsScreen,
     onScreenChanged: (SettingsScreen) -> Unit,
     modifier: Modifier = Modifier,
+    onDismissRequest: () -> Unit = {},
     onSettingChanged: (String) -> Unit = {}
 ) {
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
@@ -299,7 +326,7 @@ fun SettingsContent(
                 LoginSettingsSection(viewModel, onSettingChanged)
             }
             SettingsScreen.APP_INFO -> {
-                AppInfoSection(viewModel, onSettingChanged)
+                AppInfoSection(viewModel, activity, snackbarHostState, onDismissRequest, onSettingChanged)
             }
         }
         Spacer(modifier = Modifier.height(24.dp))
@@ -507,13 +534,66 @@ private fun LoginSettingsSection(viewModel: SettingsViewModel?, onSettingChanged
         )
     }
 
+    var connector by remember { mutableStateOf(if (isPreview) CONN_DMM else viewModel!!.getString(PREF_CONNECTOR, CONN_DMM)) }
+
+    // Shown when the user switches to an unofficial connector for the first time.
+    var showDisclaimer by remember { mutableStateOf(false) }
+    // Shown when the user disables broadcast while Kcanotify is installed.
+    var showKcanotifyWarning by remember { mutableStateOf(false) }
+
     ListRow(
         viewModel, PREF_CONNECTOR, R.string.select_server, connectorOptions(),
+        onSelected = { value ->
+            connector = value
+            if (!isPreview) {
+                // Point the session at the new connector's start page and let the
+                // user know which URL that resolves to.
+                val index = connectorOptions().indexOfFirst { it.value == value }
+                if (index in URL_LIST.indices) {
+                    viewModel!!.setString(PREF_LATEST_URL, URL_LIST[index])
+                    KcUtils.showToast(context.applicationContext, URL_LIST[index])
+                }
+                // Unofficial connectors serve resources that differ from DMM's,
+                // so make sure the user acknowledges that once.
+                if (value != CONN_DMM && !viewModel.getBoolean(PREF_TP_DISCLAIMED, false)) {
+                    showDisclaimer = true
+                }
+            }
+            true
+        },
         onSettingChanged = onSettingChanged
     )
 
-    SwitchRow(viewModel, PREF_SILENT, R.string.mode_silent, onSettingChanged = onSettingChanged)
-    SwitchRow(viewModel, PREF_BROADCAST, R.string.mode_broadcast, defaultValue = true, onSettingChanged = onSettingChanged)
+    if (showDisclaimer) {
+        ThirdPartyConnectorDialog(
+            onAccept = {
+                if (!isPreview) viewModel!!.setBoolean(PREF_TP_DISCLAIMED, true)
+                showDisclaimer = false
+            },
+            onDismiss = { showDisclaimer = false }
+        )
+    }
+
+    if (showKcanotifyWarning) {
+        KcanotifyBroadcastDialog(
+            onAccept = {
+                if (!isPreview) viewModel!!.setBoolean(PREF_BROADCAST, true)
+                showKcanotifyWarning = false
+            },
+            onDismiss = { showKcanotifyWarning = false }
+        )
+    }
+
+    // The silent mode only works with the official DMM connector.
+    SwitchRow(viewModel, PREF_SILENT, R.string.mode_silent, enabled = connector == CONN_DMM, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_BROADCAST, R.string.mode_broadcast, defaultValue = true,
+        onChanged = {
+            if (!isPreview && !viewModel!!.getBoolean(PREF_BROADCAST, true)
+                && KcUtils.isKcanotifyInstalled(context.applicationContext)) {
+                showKcanotifyWarning = true
+            }
+        },
+        onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_PANELSTART, R.string.mode_show_panel, defaultValue = true, onSettingChanged = onSettingChanged)
 
     ClickRow(
@@ -529,10 +609,16 @@ private fun LoginSettingsSection(viewModel: SettingsViewModel?, onSettingChanged
 }
 
 @Composable
-private fun AppInfoSection(viewModel: SettingsViewModel?, onSettingChanged: (String) -> Unit) {
+private fun AppInfoSection(
+    viewModel: SettingsViewModel?,
+    activity: android.app.Activity?,
+    snackbarHostState: SnackbarHostState,
+    onDismissRequest: () -> Unit,
+    onSettingChanged: (String) -> Unit
+) {
     val context = LocalContext.current
-    val activity = context as? android.app.Activity
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
+    val scope = rememberCoroutineScope()
     ClickRow(
         title = R.string.settings_version_label,
         summaryText = if (isPreview) "3.0-rev9" else viewModel!!.getAppVersion(),
@@ -541,7 +627,24 @@ private fun AppInfoSection(viewModel: SettingsViewModel?, onSettingChanged: (Str
     )
     ClickRow(
         title = R.string.settings_version_check,
-        onClick = { if (!isPreview) activity?.let { viewModel!!.checkAppUpdate(it) } }
+        onClick = {
+            if (isPreview) return@ClickRow
+            if (activity == null) {
+                KcUtils.showToast(context.applicationContext, "Unable to check update")
+                return@ClickRow
+            }
+            // Show the result in the sheet's own snackbar: the sheet renders in
+            // a separate window, so the activity's snackbar would be hidden
+            // behind it.
+            viewModel!!.checkAppUpdate(activity) { message ->
+                if (message == null) {
+                    // Download chosen; the user is leaving for the browser.
+                    onDismissRequest()
+                } else {
+                    scope.launch { snackbarHostState.showSnackbar(message) }
+                }
+            }
+        }
     )
     ClickRow(
         title = R.string.settings_source_code,
@@ -794,6 +897,59 @@ private fun SubtitleSizeDialog(
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * One-time notice shown when the user switches away from the official DMM
+ * connector, since other connectors may serve modified game resources.
+ */
+@Composable
+private fun ThirdPartyConnectorDialog(
+    onAccept: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Disclaimer") },
+        text = { Text(stringResource(id = R.string.thirdpartyconnector_msg)) },
+        confirmButton = {
+            TextButton(onClick = onAccept) { Text(stringResource(R.string.action_ok)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        }
+    )
+}
+
+/**
+ * Shown when the user turns broadcast mode off while Kcanotify is installed,
+ * because Kcanotify needs it to follow the game state.
+ */
+@Composable
+private fun KcanotifyBroadcastDialog(
+    onAccept: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(id = R.string.kcanotify_broadcast_dialog_title)) },
+        text = {
+            Text(
+                String.format(
+                    Locale.US,
+                    stringResource(id = R.string.kcanotify_broadcast_dialog_message),
+                    stringResource(id = R.string.mode_broadcast),
+                    stringResource(id = R.string.action_ok)
+                )
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onAccept) { Text(stringResource(R.string.action_ok)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        }
+    )
+}
+
 private fun cursorModeOptions() = listOf(
     ListOption("1", "Screen Touch"),
     ListOption("2", "Using Mouse")
@@ -815,6 +971,12 @@ private fun alterMethodOptions() = listOf(
 private fun kccpLanguageOptions() = listOf(
     ListOption("kccp_lang_en", "KanColle English Patch"),
     ListOption("kccp_lang_id", "KanColle Indonesia Patch")
+)
+
+private fun connectorOptions() = listOf(
+    ListOption(CONN_DMM, CONN_DMM),
+    ListOption(CONN_KANMOE, CONN_KANMOE),
+    ListOption(CONN_OOI, CONN_OOI)
 )
 
 private fun openUrl(context: Context, url: String) {
@@ -888,15 +1050,10 @@ fun SettingsBottomSheetPreview() {
         Column {
             SettingsBottomSheet(
                 viewModel = null,
+                activity = null,
                 onDismissRequest = {},
                 onSettingChanged = {}
             )
         }
     }
 }
-
-private fun connectorOptions() = listOf(
-    ListOption("DMM direct", "DMM direct"),
-    ListOption("kancolle.moe", "kancolle.moe"),
-    ListOption("ooi.moe", "ooi.moe")
-)

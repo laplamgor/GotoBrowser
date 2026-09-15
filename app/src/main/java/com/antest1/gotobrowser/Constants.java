@@ -91,9 +91,6 @@ public class Constants {
     public static final String PREF_ALTER_METHOD_URL = "1";
     public static final String PREF_ALTER_METHOD_PROXY = "2";
 
-    public static final String ACTION_SHOWPANEL = "with_layout_control_";
-    public static final String ACTION_SHOWKEYBOARD = "with_keyboard_";
-
     public static final String CONN_DMM = "DMM direct";
     public static final String CONN_KANMOE = "kancolle.moe";
     public static final String CONN_OOI = "ooi.moe";

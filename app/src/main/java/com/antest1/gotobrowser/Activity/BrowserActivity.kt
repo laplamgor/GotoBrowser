@@ -16,7 +16,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.util.Rational
 import android.view.Surface
-import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.SslErrorHandler
@@ -72,14 +71,19 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.antest1.gotobrowser.Browser.WebViewL
 import com.antest1.gotobrowser.Browser.WebViewManager
 import com.antest1.gotobrowser.BuildConfig
-import com.antest1.gotobrowser.Constants.ACTION_SHOWKEYBOARD
 import com.antest1.gotobrowser.Constants.DEFAULT_SUBTITLE_FONT_SIZE
+import com.antest1.gotobrowser.Constants.PREF_BROADCAST
 import com.antest1.gotobrowser.Constants.PREF_DOWNLOAD_RETRY
+import com.antest1.gotobrowser.Constants.PREF_KEYBOARD
 import com.antest1.gotobrowser.Constants.PREF_LANDSCAPE
 import com.antest1.gotobrowser.Constants.PREF_MULTIWIN_MARGIN
+import com.antest1.gotobrowser.Constants.PREF_PANELSTART
 import com.antest1.gotobrowser.Constants.PREF_PIP_MODE
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_FONTSIZE
 import com.antest1.gotobrowser.Constants.REQUEST_NOTIFICATION_PERMISSION
@@ -101,7 +105,6 @@ class BrowserActivity : ComponentActivity() {
         private const val MULTIWIN_MARGIN_DP = 24
     }
 
-    private var uiOption: Int = 0
     private lateinit var viewModel: BrowserViewModel
     private lateinit var settingsViewModel: SettingsViewModel
     private var manager: WebViewManager? = null
@@ -145,20 +148,34 @@ class BrowserActivity : ComponentActivity() {
         screenshotNotification = ScreenshotNotification(this)
         backPressCloseHandler = BackPressCloseHandler(this, true)
 
-        uiOption = window.decorView.systemUiVisibility
         sendIsFrontChanged(true)
 
         val intent = getIntent()
-        viewModel.isKcBrowserMode = WebViewManager.OPEN_KANCOLLE == intent.action
+        viewModel.isKcBrowserMode = WebViewManager.OPEN_KANCOLLE == intent.action || Intent.ACTION_MAIN == intent.action
+        // Only on a real cold launch: the URL opened by a share intent, a
+        // configuration change or coming back from PiP should not re-check.
+        val isAppLaunch = Intent.ACTION_MAIN == intent.action && savedInstanceState == null
 
         if (viewModel.sharedPref.getBoolean(PREF_LANDSCAPE, true)) {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
         }
 
+        toolbarVisible.value = viewModel.sharedPref.getBoolean(PREF_PANELSTART, true)
         subtitleFontSize.value = settingsViewModel.getSubtitleFontSize()
 
         manager = WebViewManager(this)
         manager?.setDataDirectorySuffix()
+
+        WebViewManager.clearKcCacheProxy()
+
+        // Deferred until the content view exists, because the update check and
+        // the Kcanotify warning both attach to android.R.id.content.
+        if (isAppLaunch) {
+            window.decorView.post {
+                checkAppUpdateOnStart()
+                warnIfKcanotifyBroadcastDisabled()
+            }
+        }
 
         setContent {
             GotobrowserTheme {
@@ -225,6 +242,7 @@ class BrowserActivity : ComponentActivity() {
                     if (settingsSheetVisible.value) {
                         SettingsBottomSheet(
                             viewModel = settingsViewModel,
+                            activity = this@BrowserActivity,
                             onDismissRequest = { settingsSheetVisible.value = false },
                             onSettingChanged = { key ->
                                 if (key in liveSettings) {
@@ -258,6 +276,7 @@ class BrowserActivity : ComponentActivity() {
         })
 
         setupSmoothPipAnimation()
+        hideSystemBars()
     }
 
     fun isKcMode(): Boolean = viewModel.isKcBrowserMode
@@ -380,30 +399,13 @@ class BrowserActivity : ComponentActivity() {
             settingsSheetVisible.value = false
             return
         }
-        if (viewModel.isKcBrowserMode) {
-            // Reveal the floating toolbar on back press, so the user can always
-            // bring it back even when the edge-swipe reveal gesture is consumed
-            // by the system back gesture. This coincides with the
-            // "Press back again to exit" prompt. Setting the state to true while
-            // the toolbar is already visible is a no-op.
-            toolbarVisible.value = true
-            backPressCloseHandler.handleOnBackPressed()
-        } else {
-            val intent = Intent(this, EntranceActivity::class.java)
-            startActivity(intent)
-            finish()
-        }
-    }
-
-    override fun onPostCreate(savedInstanceState: Bundle?) {
-        super.onPostCreate(savedInstanceState)
-        @Suppress("DEPRECATION")
-        mContentView?.systemUiVisibility = (View.SYSTEM_UI_FLAG_LOW_PROFILE
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)
-        uiOption = mContentView?.systemUiVisibility ?: 0
+        // Reveal the floating toolbar on back press, so the user can always
+        // bring it back even when the edge-swipe reveal gesture is consumed
+        // by the system back gesture. This coincides with the
+        // "Press back again to exit" prompt. Setting the state to true while
+        // the toolbar is already visible is a no-op.
+        toolbarVisible.value = true
+        backPressCloseHandler.handleOnBackPressed()
     }
 
     override fun onStop() {
@@ -433,6 +435,7 @@ class BrowserActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        hideSystemBars()
         mContentView?.resumeTimers()
         sendIsFrontChanged(true)
         updateMultiwindowMargin()
@@ -525,6 +528,46 @@ class BrowserActivity : ComponentActivity() {
         screenshotNotification.showNotification(bitmap, uri)
     }
 
+    /**
+     * Asks GitHub for the latest release as soon as the app is launched, so the
+     * user is told about a new version without having to open the settings.
+     *
+     * Guarded through the ViewModel so a recreated activity does not fire a
+     * second request for the same launch.
+     */
+    private fun checkAppUpdateOnStart() {
+        if (viewModel.isAppUpdateCheckStarted) return
+        viewModel.isAppUpdateCheckStarted = true
+        settingsViewModel.checkAppUpdate(this)
+    }
+
+    /**
+     * Kcanotify needs broadcast mode to follow the game state, so warn once per
+     * launch if it is installed while the setting is off.
+     */
+    private fun warnIfKcanotifyBroadcastDisabled() {
+        val broadcastEnabled = viewModel.sharedPref.getBoolean(PREF_BROADCAST, true)
+        if (broadcastEnabled || !KcUtils.isKcanotifyInstalled(this)) return
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.kcanotify_broadcast_dialog_title))
+            .setCancelable(false)
+            .setMessage(
+                String.format(
+                    Locale.US,
+                    getString(R.string.kcanotify_broadcast_dialog_message),
+                    getString(R.string.mode_broadcast),
+                    getString(R.string.action_ok)
+                )
+            )
+            .setPositiveButton(R.string.action_ok) { dialog, _ ->
+                viewModel.sharedPref.edit().putBoolean(PREF_BROADCAST, true).apply()
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.action_cancel) { dialog, _ -> dialog.cancel() }
+            .show()
+    }
+
     private fun checkStoragePermissionGrated(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
@@ -553,15 +596,16 @@ class BrowserActivity : ComponentActivity() {
         sendBroadcast(intent)
     }
 
-    fun initPanelKeyboardFromIntent(intent: Intent?) {
-        if (intent != null) {
-            val options = intent.getStringExtra("options")
-            if (options != null && !options.contains(ACTION_SHOWKEYBOARD)) {
-                mContentView?.isFocusableInTouchMode = false
-                mContentView?.isFocusable = false
-                mContentView?.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
-            }
-        }
+    /**
+     * Blocks the soft keyboard by making the WebView unfocusable when the user
+     * turned the on-screen keyboard off. The preference is read directly, since
+     * BrowserActivity is now the only entry point.
+     */
+    fun applyKeyboardSetting() {
+        if (viewModel.sharedPref.getBoolean(PREF_KEYBOARD, true)) return
+        mContentView?.isFocusableInTouchMode = false
+        mContentView?.isFocusable = false
+        mContentView?.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
     }
 
     private fun supportsPiPMode(): Boolean {
@@ -586,6 +630,14 @@ class BrowserActivity : ComponentActivity() {
             val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             context.startActivity(browserIntent)
         }
+    }
+
+    private fun hideSystemBars() {
+        val windowInsetsController =
+            WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
     }
 }
 
@@ -789,7 +841,7 @@ fun BrowserScreenContent(
                         onViewCreated(this)
                         addJavascriptInterface(viewModel.k3dPatcher, "kantai3dInterface")
                         manager?.setHardwareAcceleratedFlag()
-                        activity.initPanelKeyboardFromIntent(intent)
+                        activity.applyKeyboardSetting()
                         // Initial setup...
                         viewModel.connectorInfo = WebViewManager.getDefaultPage(activity, viewModel.isKcBrowserMode)
                         val info = viewModel.connectorInfo
