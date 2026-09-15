@@ -1,5 +1,6 @@
 package com.antest1.gotobrowser.Activity;
 
+import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
@@ -25,6 +26,7 @@ import com.antest1.gotobrowser.Helpers.KenPatcher;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.Locale;
 
 import static com.antest1.gotobrowser.Constants.DEFAULT_ALTER_GADGET_URL;
@@ -54,6 +56,32 @@ import static com.antest1.gotobrowser.Helpers.KcUtils.clearApplicationCache;
 public class SettingsViewModel extends AndroidViewModel {
     /** Host context is not available while the screen is off-screen. */
     private static final String SUBTITLE_UPDATE_LOADING = "checking updates...";
+
+    /**
+     * The activity the settings sheet is attached to, needed because dialogs
+     * require a window token (see {@link #requireContext()}). Held weakly: a
+     * ViewModel outlives its activity on a configuration change.
+     */
+    private WeakReference<Activity> hostActivity = new WeakReference<>(null);
+
+    public void setHostActivity(Activity activity) {
+        hostActivity = new WeakReference<>(activity);
+    }
+
+    public void clearHostActivity(Activity activity) {
+        if (hostActivity.get() == activity) {
+            hostActivity = new WeakReference<>(null);
+        }
+    }
+
+    /** The dialog-capable context, or null when detached / finishing. */
+    private Activity dialogActivity() {
+        Activity activity = hostActivity.get();
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            return null;
+        }
+        return activity;
+    }
 
     private final SharedPreferences sharedPref;
     private final VersionDatabase versionTable;
@@ -349,12 +377,13 @@ public class SettingsViewModel extends AndroidViewModel {
     private final SettingsStatusHost host = new SettingsStatusHost() {
         @Override
         public Context getContext() {
-            return getApplication().getApplicationContext();
+            Activity activity = dialogActivity();
+            return activity != null ? activity : getApplication().getApplicationContext();
         }
 
         @Override
         public Context requireContext() {
-            return getApplication().getApplicationContext();
+            return dialogActivity();
         }
 
         @Override
