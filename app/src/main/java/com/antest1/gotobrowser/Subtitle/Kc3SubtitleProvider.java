@@ -501,7 +501,12 @@ public class Kc3SubtitleProvider implements SubtitleProvider {
                 String commit = subtitleData.get("latest_commit").getAsString();
                 String path = subtitleData.get("download_url").getAsString();
 
-                Kc3SubtitleRepo subtitleRepo = getRetrofitAdapter(host.requireContext(), SUBTITLE_ROOT).create(Kc3SubtitleRepo.class);
+                // requireContext() is null when the sheet has no activity; the
+                // adapter only needs a context, not a window.
+                Context context = host.requireContext();
+                if (context == null) return;
+
+                Kc3SubtitleRepo subtitleRepo = getRetrofitAdapter(context, SUBTITLE_ROOT).create(Kc3SubtitleRepo.class);
                 Call<JsonObject> call = subtitleRepo.download(commit, path);
                 call.enqueue(new Callback<JsonObject>() {
                     @Override
@@ -510,7 +515,10 @@ public class Kc3SubtitleProvider implements SubtitleProvider {
                     }
                     @Override
                     public void onFailure(Call<JsonObject> call, Throwable t) {
-                        KcUtils.showToast(host.requireContext(), t.getLocalizedMessage());
+                        Context uiContext = host.requireContext();
+                        if (uiContext != null) {
+                            KcUtils.showToast(uiContext, t.getLocalizedMessage());
+                        }
                     }
                 });
             } catch (IllegalStateException e) {

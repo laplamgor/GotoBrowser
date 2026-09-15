@@ -435,6 +435,9 @@ class BrowserActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Anchor dialogs opened by the settings sheet to this window; re-set on
+        // every resume because the ViewModel outlives the activity.
+        settingsViewModel.setHostActivity(this)
         hideSystemBars()
         mContentView?.resumeTimers()
         sendIsFrontChanged(true)
@@ -451,6 +454,7 @@ class BrowserActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        settingsViewModel.clearHostActivity(this)
         mContentView?.removeAllViews()
         mContentView?.destroy()
         super.onDestroy()

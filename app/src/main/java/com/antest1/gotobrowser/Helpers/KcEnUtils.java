@@ -4,6 +4,7 @@ import static com.antest1.gotobrowser.Helpers.KcUtils.getStringFromException;
 import static com.antest1.gotobrowser.Helpers.KcUtils.parseJsonArray;
 import static com.antest1.gotobrowser.Helpers.KcUtils.parseJsonObject;
 
+import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -235,7 +236,7 @@ public class KcEnUtils {
         host.setPatchUpdateStatus("Checking updates...", false);
 
         JsonObject enPatchLocalInfo;
-        String enPatchLocalInfoPath = getEnPatchLocalFolder(host.requireContext()).concat(ENPATCH_INFO_LOCAL_FILE());
+        String enPatchLocalInfoPath = getEnPatchLocalFolder(host.getContext()).concat(ENPATCH_INFO_LOCAL_FILE());
 
         JsonObject enPatchInfo = getKantaiEnUpdateInfo(client);
         String availableVersion = "";
@@ -305,6 +306,11 @@ public class KcEnUtils {
 
     public void requestPatchUpdate(SettingsStatusHost host) throws IOException {
         // To do: clean up this mess
+        if (host.requireContext() == null) {
+            // No window to show progress in; do not start an invisible download.
+            host.setPatchUpdateStatus("Cannot start download: no window available", false);
+            return;
+        }
         Context context = host.requireContext();
         if (newVersionFlag) {
             // Updates the patch by downloading each new file individually, and deleting outdated ones
@@ -322,6 +328,7 @@ public class KcEnUtils {
     }
 
     public void requestPatchDelete(SettingsStatusHost host) {
+        if (host.requireContext() == null) return;
         Context context = host.requireContext();
         MaterialAlertDialogBuilder alertDialogBuilder = new MaterialAlertDialogBuilder(context);
         alertDialogBuilder.setTitle(R.string.settings_mod_kantaien_delete);
@@ -495,8 +502,19 @@ public class KcEnUtils {
             this.host = host;
         }
 
+        /** A ProgressDialog needs a window token, so only show it with an activity. */
+        private boolean canShowDialog() {
+            return context instanceof Activity
+                    && !((Activity) context).isFinishing()
+                    && !((Activity) context).isDestroyed();
+        }
+
         @Override
         protected void onPreExecute() {
+            if (!canShowDialog()) {
+                dialog = null;
+                return;
+            }
             dialog = new ProgressDialog(context);
             dialog.setTitle("Update Patch Files");
             dialog.setMessage("Downloading...");
@@ -507,12 +525,15 @@ public class KcEnUtils {
 
         @Override
         protected void onProgressUpdate(String... values) {
-            dialog.setMessage(values[0]);
+            if (dialog != null) dialog.setMessage(values[0]);
         }
 
         @Override
         protected void onPostExecute(Integer result) {
-            dialog.dismiss();
+            if (dialog != null) {
+                dialog.dismiss();
+                dialog = null;
+            }
 
             if (result == 1) {
                 KcUtils.showToast(context, "Patch updated");
@@ -652,6 +673,13 @@ public class KcEnUtils {
             this.patchInfo = patch_info;
         }
 
+        /** See {@link PatchIndividualDownloader#canShowDialog()}. */
+        private boolean canShowDialog() {
+            return context instanceof Activity
+                    && !((Activity) context).isFinishing()
+                    && !((Activity) context).isDestroyed();
+        }
+
         @Override
         protected void onPreExecute() {
             if (patchInfo.has("size") && !patchInfo.get("size").isJsonNull()) {
@@ -659,6 +687,10 @@ public class KcEnUtils {
             }
 
             super.onPreExecute();
+            if (!canShowDialog()) {
+                mProgressDialog = null;
+                return;
+            }
             mProgressDialog = new ProgressDialog(context);
             mProgressDialog.setTitle("Update Patch Files");
             mProgressDialog.setMessage("Downloading...");
@@ -673,7 +705,7 @@ public class KcEnUtils {
         @Override
         protected void onProgressUpdate(String... values) {
             super.onProgressUpdate(values);
-            mProgressDialog.setMessage(values[0]);
+            if (mProgressDialog != null) mProgressDialog.setMessage(values[0]);
         }
 
         @Override
@@ -718,7 +750,7 @@ public class KcEnUtils {
                         );
 
                         publishProgress(message);
-                        mProgressDialog.setProgress(percent);
+                        if (mProgressDialog != null) mProgressDialog.setProgress(percent);
 
                         lastUpdateTime = now;
                         lastTransferred = transferred;
@@ -778,7 +810,10 @@ public class KcEnUtils {
                 }
             }
 
-            if (mProgressDialog != null) mProgressDialog.dismiss();
+            if (mProgressDialog != null) {
+                mProgressDialog.dismiss();
+                mProgressDialog = null;
+            }
         }
     }
 }
