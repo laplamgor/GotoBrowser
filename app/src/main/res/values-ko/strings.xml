@@ -38,7 +38,7 @@
     <string name="setting_latest_download" formatted="false">업데이트가 있습니다. (%s)\n다운로드하시겠습니까?</string>
     <string name="setting_latest_download_subtitle" formatted="false">업데이트가 있습니다. (%s)</string>
 
-    <string name="settings_appinfo_browsersettings">브라우저 설정</string>
+    <string name="settings_browsersettings">브라우저 설정</string>
     <string name="browser_fontprefetch">폰트 파일 미리 로드</string>
     <string name="browser_enablepipmode">PIP 모드 활성화</string>
     <string name="browser_disable_refresh_dialog">새로고침 확인 비활성화</string>
@@ -126,4 +126,9 @@
     <string name="dialog_ipblock_message" formatted="false">메인 화면에서 「%s」 옵션을 켜주세요.\n(설정에서도 활성화 가능)</string>
     <string name="kcanotify_broadcast_dialog_title">시제 깡들리티 설치 감지됨</string>
     <string name="kcanotify_broadcast_dialog_message" formatted="false">고토브라우저를 깡들리티와 함께 사용하기 위해서는 「%s」가 켜져 있어야 합니다. %s을 눌러 활성화하시겠습니까?</string>
+    <string name="settings_menu_tooltip">설정</string>
+    <string name="settings_refresh_required_title">새로고침 필요</string>
+    <string name="settings_refresh_required_msg">설정이 저장되었습니다. 변경 사항을 적용하려면 게임을 새로고침해야 합니다. 지금 새로고침하시겠습니까?</string>
+    <string name="settings_refresh_now">지금 새로고침</string>
+    <string name="settings_refresh_later">새로고침 없이 설정 변경</string>
 </resources>

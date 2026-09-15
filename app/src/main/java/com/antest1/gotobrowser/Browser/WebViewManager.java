@@ -130,7 +130,7 @@ public class WebViewManager {
                         activity.setStartedFlag();
                         webview.getSettings().setBuiltInZoomControls(true);
                         webview.getSettings().setDisplayZoomControls(false);
-                        if (sharedPref.getBoolean(PREF_ADJUSTMENT, false)) {
+                        if (sharedPref.getBoolean(PREF_ADJUSTMENT, true)) {
                             webview.evaluateJavascript(ADJUST_SCRIPT, null);
                         }
                     }

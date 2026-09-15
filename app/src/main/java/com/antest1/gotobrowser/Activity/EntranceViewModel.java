@@ -46,8 +46,8 @@ public class EntranceViewModel extends AndroidViewModel {
 
         connector.setValue(sharedPref.getString(PREF_CONNECTOR, CONN_DMM));
         silentMode.setValue(sharedPref.getBoolean(PREF_SILENT, false));
-        broadcastMode.setValue(sharedPref.getBoolean(PREF_BROADCAST, false));
-        panelStart.setValue(sharedPref.getBoolean(PREF_PANELSTART, false));
+        broadcastMode.setValue(sharedPref.getBoolean(PREF_BROADCAST, true));
+        panelStart.setValue(sharedPref.getBoolean(PREF_PANELSTART, true));
     }
 
     public LiveData<String> getConnector() { return connector; }

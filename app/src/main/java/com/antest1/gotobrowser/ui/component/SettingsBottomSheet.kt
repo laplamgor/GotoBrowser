@@ -3,8 +3,18 @@ package com.antest1.gotobrowser.ui.component
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,9 +25,13 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -43,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.antest1.gotobrowser.Activity.SettingsViewModel
@@ -50,9 +65,13 @@ import com.antest1.gotobrowser.Constants.PREF_ADJUSTMENT
 import com.antest1.gotobrowser.Constants.PREF_ALTER_ENDPOINT
 import com.antest1.gotobrowser.Constants.PREF_ALTER_GADGET
 import com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD
+import com.antest1.gotobrowser.Constants.PREF_BROADCAST
+import com.antest1.gotobrowser.Constants.PREF_CONNECTOR
 import com.antest1.gotobrowser.Constants.PREF_CURSOR_MODE
 import com.antest1.gotobrowser.Constants.PREF_DEVTOOLS_DEBUG
 import com.antest1.gotobrowser.Constants.PREF_DISABLE_REFRESH_DIALOG
+import com.antest1.gotobrowser.Constants.PREF_DMM_ID
+import com.antest1.gotobrowser.Constants.PREF_DMM_PASS
 import com.antest1.gotobrowser.Constants.PREF_DOWNLOAD_RETRY
 import com.antest1.gotobrowser.Constants.PREF_FONT_PREFETCH
 import com.antest1.gotobrowser.Constants.PREF_KEYBOARD
@@ -64,12 +83,17 @@ import com.antest1.gotobrowser.Constants.PREF_MOD_KANTAI3D
 import com.antest1.gotobrowser.Constants.PREF_MOD_KCCP_LANG_PATCH
 import com.antest1.gotobrowser.Constants.PREF_MOD_KCCP_LANG_PATCH_NAME
 import com.antest1.gotobrowser.Constants.PREF_MULTIWIN_MARGIN
+import com.antest1.gotobrowser.Constants.PREF_PANELSTART
 import com.antest1.gotobrowser.Constants.PREF_PIP_MODE
+import com.antest1.gotobrowser.Constants.PREF_SILENT
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_FONTSIZE
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_LOCALE
 import com.antest1.gotobrowser.Constants.PREF_USE_EXTCACHE
+import com.antest1.gotobrowser.Helpers.KcUtils
 import com.antest1.gotobrowser.R
 import kotlinx.coroutines.launch
+import java.util.Calendar
+import java.util.Locale
 import kotlin.math.roundToInt
 
 private const val MIN_SUBTITLE_FONTSIZE = 12
@@ -79,6 +103,16 @@ private const val GITHUB_KANTAI3D = "https://github.com/laplamgor/kantai3d"
 private const val GITHUB_GOTOBROWSER = "https://github.com/antest1/GotoBrowser/"
 
 private data class ListOption(val value: String, val title: String, val summary: String? = null)
+
+enum class SettingsScreen {
+    MAIN,
+    BROWSER,
+    SUBTITLE,
+    CONNECTION,
+    MODS,
+    LOGIN,
+    APP_INFO
+}
 
 /**
  * Modal bottom sheet hosting the settings list on top of the browser.
@@ -91,33 +125,87 @@ private data class ListOption(val value: String, val title: String, val summary:
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsBottomSheet(
-    viewModel: SettingsViewModel,
+    viewModel: SettingsViewModel?,
     onDismissRequest: () -> Unit,
     onSettingChanged: (String) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val snackbarHostState = remember { SnackbarHostState() }
+    var currentScreen by remember { mutableStateOf(SettingsScreen.MAIN) }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState
     ) {
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.titleLarge,
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
-        )
-        SettingsContent(
-            viewModel = viewModel,
-            snackbarHostState = snackbarHostState,
-            modifier = Modifier.fillMaxWidth(),
-            onSettingChanged = onSettingChanged
-        )
+                .padding(start = 4.dp, end = 16.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.height(48.withDp())) {
+                if (currentScreen != SettingsScreen.MAIN) {
+                    IconButton(
+                        onClick = { currentScreen = SettingsScreen.MAIN }
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.padding(start = 12.dp))
+                }
+            }
+            Text(
+                text = when (currentScreen) {
+                    SettingsScreen.MAIN -> stringResource(R.string.settings_menu_tooltip)
+                    SettingsScreen.BROWSER -> stringResource(R.string.settings_browsersettings)
+                    SettingsScreen.SUBTITLE -> stringResource(R.string.settings_subtitle_label)
+                    SettingsScreen.CONNECTION -> stringResource(R.string.setting_connection)
+                    SettingsScreen.MODS -> stringResource(R.string.settings_mod_label)
+                    SettingsScreen.LOGIN -> stringResource(R.string.selected_server)
+                    SettingsScreen.APP_INFO -> stringResource(R.string.settings_appinfo_label)
+                },
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        AnimatedContent(
+            targetState = currentScreen,
+            transitionSpec = {
+                val isGoingBack = targetState == SettingsScreen.MAIN
+                if (isGoingBack) {
+                    (slideInHorizontally(animationSpec = tween(300)) { -it } + fadeIn(animationSpec = tween(300)))
+                        .togetherWith(slideOutHorizontally(animationSpec = tween(300)) { it } + fadeOut(animationSpec = tween(300)))
+                } else {
+                    (slideInHorizontally(animationSpec = tween(300)) { it } + fadeIn(animationSpec = tween(300)))
+                        .togetherWith(slideOutHorizontally(animationSpec = tween(300)) { -it } + fadeOut(animationSpec = tween(300)))
+                }.using(
+                    SizeTransform(
+                        clip = false,
+                        sizeAnimationSpec = { _, _ -> keyframes { durationMillis = 300 } }
+                    )
+                )
+            },
+            label = "SettingsScreenTransition"
+        ) { screen ->
+            SettingsContent(
+                viewModel = viewModel,
+                snackbarHostState = snackbarHostState,
+                currentScreen = screen,
+                onScreenChanged = { currentScreen = it },
+                modifier = Modifier.fillMaxWidth(),
+                onSettingChanged = onSettingChanged
+            )
+        }
     }
 }
+
+private fun Int.withDp() = this.dp
 
 /**
  * The full settings list, decoupled from any container, so it can be hosted by
@@ -129,41 +217,91 @@ fun SettingsBottomSheet(
  */
 @Composable
 fun SettingsContent(
-    viewModel: SettingsViewModel,
+    viewModel: SettingsViewModel?,
     snackbarHostState: SnackbarHostState,
+    currentScreen: SettingsScreen,
+    onScreenChanged: (SettingsScreen) -> Unit,
     modifier: Modifier = Modifier,
     onSettingChanged: (String) -> Unit = {}
 ) {
-    val patchSummary by viewModel.patchUpdateSummary.observeAsState("checking updates...")
-    val patchEnabled by viewModel.patchUpdateEnabled.observeAsState(false)
-    val subtitleSummary by viewModel.subtitleUpdateSummary.observeAsState("checking updates...")
-    val subtitleEnabled by viewModel.subtitleUpdateEnabled.observeAsState(false)
-    val patchAboutTitle by viewModel.patchAboutTitleRes.observeAsState(R.string.settings_mod_kantaien_about)
-    val patchAboutUrl by viewModel.patchAboutUrl.observeAsState("")
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
 
-    // Triggers the same "onViewCreated" side effects the old fragment ran:
-    // updateSubtitleDescriptionText / updateKCCPLangPatchDescriptionText /
-    // updateKCCPLangPatchInfo / updateKantai3dDisable.
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        viewModel.refreshSubtitleDescription()
-        viewModel.refreshKccpDependentRows(null)
+    val patchSummary = if (isPreview) "checking updates..." else viewModel.patchUpdateSummary.observeAsState("checking updates...").value
+    val patchEnabled = if (isPreview) false else viewModel.patchUpdateEnabled.observeAsState(false).value
+    val subtitleSummary = if (isPreview) "checking updates..." else viewModel.subtitleUpdateSummary.observeAsState("checking updates...").value
+    val subtitleEnabled = if (isPreview) false else viewModel.subtitleUpdateEnabled.observeAsState(false).value
+    val patchAboutTitle = if (isPreview) R.string.settings_mod_kantaien_about else viewModel.patchAboutTitleRes.observeAsState(R.string.settings_mod_kantaien_about).value
+    val patchAboutUrl = if (isPreview) "" else viewModel.patchAboutUrl.observeAsState("").value
+
+    if (!isPreview) {
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            viewModel.refreshSubtitleDescription()
+            viewModel.refreshKccpDependentRows(null)
+        }
     }
 
     Column(
         modifier = modifier.verticalScroll(rememberScrollState())
     ) {
-        BrowserSettingsSection(viewModel, onSettingChanged)
-        SubtitleSection(viewModel, subtitleSummary, subtitleEnabled, onSettingChanged)
-        ConnectionSection(viewModel, snackbarHostState, onSettingChanged)
-        ModsSection(
-            viewModel,
-            patchTitle = patchAboutTitle,
-            patchUrl = patchAboutUrl,
-            patchSummary = patchSummary,
-            patchEnabledState = patchEnabled,
-            onSettingChanged = onSettingChanged
-        )
-        AppInfoSection(viewModel, onSettingChanged)
+        when (currentScreen) {
+            SettingsScreen.MAIN -> {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.selected_server)) },
+                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.LOGIN) }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_browsersettings)) },
+                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.BROWSER) }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_subtitle_label)) },
+                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.SUBTITLE) }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.setting_connection)) },
+                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.CONNECTION) }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_mod_label)) },
+                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.MODS) }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_appinfo_label)) },
+                    modifier = Modifier.clickable { onScreenChanged(SettingsScreen.APP_INFO) }
+                )
+                HorizontalDivider()
+            }
+            SettingsScreen.BROWSER -> {
+                BrowserSettingsSection(viewModel, onSettingChanged)
+            }
+            SettingsScreen.SUBTITLE -> {
+                SubtitleSection(viewModel, subtitleSummary, subtitleEnabled, onSettingChanged)
+            }
+            SettingsScreen.CONNECTION -> {
+                ConnectionSection(viewModel, snackbarHostState, onSettingChanged)
+            }
+            SettingsScreen.MODS -> {
+                ModsSection(
+                    viewModel,
+                    patchTitle = patchAboutTitle,
+                    patchUrl = patchAboutUrl,
+                    patchSummary = patchSummary,
+                    patchEnabledState = patchEnabled,
+                    onSettingChanged = onSettingChanged
+                )
+            }
+            SettingsScreen.LOGIN -> {
+                LoginSettingsSection(viewModel, onSettingChanged)
+            }
+            SettingsScreen.APP_INFO -> {
+                AppInfoSection(viewModel, onSettingChanged)
+            }
+        }
         Spacer(modifier = Modifier.height(24.dp))
     }
 }
@@ -173,41 +311,31 @@ fun SettingsContent(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun SectionHeader(resId: Int) {
-    Text(
-        text = stringResource(resId),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp)
-    )
-}
-
-@Composable
-private fun BrowserSettingsSection(viewModel: SettingsViewModel, onSettingChanged: (String) -> Unit) {
-    SectionHeader(R.string.settings_appinfo_browsersettings)
+private fun BrowserSettingsSection(viewModel: SettingsViewModel?, onSettingChanged: (String) -> Unit) {
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
     SwitchRow(viewModel, PREF_LANDSCAPE, R.string.mode_landscape, R.string.settings_recommended_summary, onSettingChanged = onSettingChanged)
-    SwitchRow(viewModel, PREF_ADJUSTMENT, R.string.mode_adjustment, R.string.settings_recommended_summary, onSettingChanged = onSettingChanged)
-    SwitchRow(viewModel, PREF_FONT_PREFETCH, R.string.browser_fontprefetch, R.string.settings_recommended_summary, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_ADJUSTMENT, R.string.mode_adjustment, R.string.settings_recommended_summary, defaultValue = true, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_FONT_PREFETCH, R.string.browser_fontprefetch, R.string.settings_recommended_summary, defaultValue = true, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_USE_EXTCACHE, R.string.settings_use_external_dir, R.string.settings_recommended_summary,
-        onChanged = { viewModel.onExternalCacheChanged() }, onSettingChanged = onSettingChanged)
-    SwitchRow(viewModel, PREF_KEYBOARD, R.string.mode_enable_keyboard, onSettingChanged = onSettingChanged)
+        onChanged = { if (!isPreview) viewModel!!.onExternalCacheChanged() }, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_KEYBOARD, R.string.mode_enable_keyboard, defaultValue = true, onSettingChanged = onSettingChanged)
     ListRow(viewModel, PREF_CURSOR_MODE, R.string.setting_cursor_mode, cursorModeOptions(), onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_DISABLE_REFRESH_DIALOG, R.string.browser_disable_refresh_dialog, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_PIP_MODE, R.string.browser_enablepipmode, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_MULTIWIN_MARGIN, R.string.settings_mw_margin, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_LEGACY_RENDERER, R.string.settings_legacy_renderer_enable,
-        R.string.settings_legacy_renderer_summary, onChanged = { viewModel.onLegacyRendererChanged() }, onSettingChanged = onSettingChanged)
+        R.string.settings_legacy_renderer_summary, onChanged = { if (!isPreview) viewModel!!.onLegacyRendererChanged() }, onSettingChanged = onSettingChanged)
 }
 
 @Composable
-private fun SubtitleSection(viewModel: SettingsViewModel, subtitleSummary: String, subtitleEnabled: Boolean, onSettingChanged: (String) -> Unit) {
-    SectionHeader(R.string.settings_subtitle_label)
+private fun SubtitleSection(viewModel: SettingsViewModel?, subtitleSummary: String, subtitleEnabled: Boolean, onSettingChanged: (String) -> Unit) {
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
     ListRow(viewModel, PREF_SUBTITLE_LOCALE, R.string.settings_subtitle_language, subtitleLocaleOptions(),
-        onSelected = { viewModel.onSubtitleLocaleChanged(it); true },
+        onSelected = { if (!isPreview) viewModel!!.onSubtitleLocaleChanged(it); true },
         onSettingChanged = onSettingChanged)
 
     var showSubtitleSizeDialog by remember { mutableStateOf(false) }
-    val subtitleSize = remember { mutableIntStateOf(viewModel.getSubtitleFontSize()) }
+    val subtitleSize = remember { mutableIntStateOf(if (isPreview) 16 else viewModel!!.getSubtitleFontSize()) }
     ClickRow(
         title = R.string.settings_subtitle_fontsize,
         summaryText = subtitleSize.intValue.toString(),
@@ -217,7 +345,9 @@ private fun SubtitleSection(viewModel: SettingsViewModel, subtitleSummary: Strin
         SubtitleSizeDialog(
             initialSize = subtitleSize.intValue,
             onSave = { newSize ->
-                viewModel.setInt(PREF_SUBTITLE_FONTSIZE, newSize)
+                if (!isPreview) {
+                    viewModel!!.setInt(PREF_SUBTITLE_FONTSIZE, newSize)
+                }
                 subtitleSize.intValue = newSize
                 showSubtitleSizeDialog = false
                 onSettingChanged(PREF_SUBTITLE_FONTSIZE)
@@ -230,35 +360,39 @@ private fun SubtitleSection(viewModel: SettingsViewModel, subtitleSummary: Strin
         title = R.string.settings_subtitle_download,
         summaryText = subtitleSummary,
         enabled = subtitleEnabled,
-        onClick = { viewModel.downloadSubtitleUpdate() }
+        onClick = { if (!isPreview) viewModel!!.downloadSubtitleUpdate() }
     )
 }
 
 @Composable
-private fun ConnectionSection(viewModel: SettingsViewModel, snackbarHostState: SnackbarHostState, onSettingChanged: (String) -> Unit) {
+private fun ConnectionSection(viewModel: SettingsViewModel?, snackbarHostState: SnackbarHostState, onSettingChanged: (String) -> Unit) {
     val scope = rememberCoroutineScope()
-    SectionHeader(R.string.setting_connection)
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
     SwitchRow(viewModel, PREF_ALTER_GADGET, R.string.connection_use_alter, R.string.connection_use_alter_summary,
         onSettingChanged = onSettingChanged)
 
-    val alterGadgetEnabled = viewModel.getBoolean(PREF_ALTER_GADGET, false)
+    val alterGadgetEnabled = if (isPreview) false else viewModel!!.getBoolean(PREF_ALTER_GADGET, false)
     ListRow(
         viewModel, PREF_ALTER_METHOD, R.string.setting_alter_method, alterMethodOptions(),
         enabled = alterGadgetEnabled,
         onSelected = { value ->
-            if (viewModel.onAlterMethodSelected(value)) {
+            if (isPreview) {
                 true
             } else {
-                scope.launch {
-                    snackbarHostState.showSnackbar("PROXY_OVERRIDE not supported, use other option")
+                if (viewModel!!.onAlterMethodSelected(value)) {
+                    true
+                } else {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("PROXY_OVERRIDE not supported, use other option")
+                    }
+                    false
                 }
-                false
             }
         },
         onSettingChanged = onSettingChanged
     )
 
-    var endpoint by remember { mutableStateOf(viewModel.getAlterEndpoint()) }
+    var endpoint by remember { mutableStateOf(if (isPreview) "http://localhost" else viewModel!!.getAlterEndpoint()) }
     var showEndpointDialog by remember { mutableStateOf(false) }
     ClickRow(
         title = R.string.setting_alter_endpoint,
@@ -271,8 +405,12 @@ private fun ConnectionSection(viewModel: SettingsViewModel, snackbarHostState: S
             title = R.string.setting_alter_endpoint,
             initialValue = endpoint,
             onSave = { value ->
-                viewModel.onAlterEndpointChanged(value)
-                endpoint = viewModel.getAlterEndpoint()
+                if (!isPreview) {
+                    viewModel!!.onAlterEndpointChanged(value)
+                    endpoint = viewModel.getAlterEndpoint()
+                } else {
+                    endpoint = value
+                }
                 showEndpointDialog = false
                 onSettingChanged(PREF_ALTER_ENDPOINT)
             },
@@ -286,7 +424,7 @@ private fun ConnectionSection(viewModel: SettingsViewModel, snackbarHostState: S
 
 @Composable
 private fun ModsSection(
-    viewModel: SettingsViewModel,
+    viewModel: SettingsViewModel?,
     patchTitle: Int,
     patchUrl: String,
     patchSummary: String,
@@ -294,11 +432,11 @@ private fun ModsSection(
     onSettingChanged: (String) -> Unit
 ) {
     val context = LocalContext.current
-    SectionHeader(R.string.settings_mod_label)
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
     SwitchRow(viewModel, PREF_MOD_FPS, R.string.settings_mod_fps_enable, R.string.settings_mod_fps_summary,
         onSettingChanged = onSettingChanged)
 
-    val kantai3dEnabled = viewModel.isKantai3dEnabled()
+    val kantai3dEnabled = if (isPreview) false else viewModel!!.isKantai3dEnabled()
     SwitchRow(viewModel, PREF_MOD_KANTAI3D, R.string.settings_mod_kantai3d_enable,
         R.string.settings_mod_kantai3d_summary, enabled = kantai3dEnabled, onSettingChanged = onSettingChanged)
     ClickRow(
@@ -310,14 +448,14 @@ private fun ModsSection(
     SwitchRow(viewModel, PREF_MOD_CRIT, R.string.settings_mod_crit_enable, R.string.settings_mod_crit_summary,
         onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_MOD_KCCP_LANG_PATCH, R.string.settings_mod_kccp, R.string.settings_mod_kccp_summary,
-        onChanged = { viewModel.onKccpPatchChanged() }, onSettingChanged = onSettingChanged)
+        onChanged = { if (!isPreview) viewModel!!.onKccpPatchChanged() }, onSettingChanged = onSettingChanged)
 
-    val patchEnabled = viewModel.isKccpPatchEnabled()
+    val patchEnabled = if (isPreview) false else viewModel!!.isKccpPatchEnabled()
     ListRow(
         viewModel, PREF_MOD_KCCP_LANG_PATCH_NAME, R.string.settings_mod_kccp_patch_name, kccpLanguageOptions(),
         enabled = patchEnabled,
-        summaryProvider = { viewModel.getKccpPatchSummary(it) },
-        onSelected = { viewModel.onPatchLanguageChanged(it); true },
+        summaryProvider = { if (isPreview) "" else viewModel!!.getKccpPatchSummary(it) },
+        onSelected = { if (!isPreview) viewModel!!.onPatchLanguageChanged(it); true },
         onSettingChanged = onSettingChanged
     )
 
@@ -325,13 +463,13 @@ private fun ModsSection(
         title = R.string.settings_mod_kantaien_download,
         summaryText = patchSummary,
         enabled = patchEnabled && patchEnabledState,
-        onClick = { viewModel.requestPatchUpdate() }
+        onClick = { if (!isPreview) viewModel!!.requestPatchUpdate() }
     )
     ClickRow(
         title = R.string.settings_mod_kantaien_delete,
         summary = R.string.settings_mod_kantaien_delete_summary,
         enabled = patchEnabled,
-        onClick = { viewModel.requestPatchDelete() }
+        onClick = { if (!isPreview) viewModel!!.requestPatchDelete() }
     )
     ClickRow(
         title = patchTitle,
@@ -342,24 +480,83 @@ private fun ModsSection(
 }
 
 @Composable
-private fun AppInfoSection(viewModel: SettingsViewModel, onSettingChanged: (String) -> Unit) {
+private fun LoginSettingsSection(viewModel: SettingsViewModel?, onSettingChanged: (String) -> Unit) {
+    val context = LocalContext.current
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
+    var showLoginForm by remember { mutableStateOf(false) }
+
+    ClickRow(
+        title = R.string.autocomplete_title,
+        summary = R.string.autocomplete_msg,
+        onClick = { showLoginForm = true }
+    )
+
+    if (showLoginForm) {
+        LoginFormDialog(
+            initialId = if (isPreview) "" else viewModel!!.getString(PREF_DMM_ID, ""),
+            initialPassword = if (isPreview) "" else viewModel!!.getString(PREF_DMM_PASS, ""),
+            onSave = { loginId, loginPassword ->
+                if (!isPreview) {
+                    viewModel!!.setString(PREF_DMM_ID, loginId)
+                    viewModel!!.setString(PREF_DMM_PASS, loginPassword)
+                }
+                showLoginForm = false
+                onSettingChanged(PREF_DMM_ID)
+            },
+            onDismiss = { showLoginForm = false }
+        )
+    }
+
+    ListRow(
+        viewModel, PREF_CONNECTOR, R.string.select_server, connectorOptions(),
+        onSettingChanged = onSettingChanged
+    )
+
+    SwitchRow(viewModel, PREF_SILENT, R.string.mode_silent, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_BROADCAST, R.string.mode_broadcast, defaultValue = true, onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_PANELSTART, R.string.mode_show_panel, defaultValue = true, onSettingChanged = onSettingChanged)
+
+    ClickRow(
+        title = R.string.cache_clear_text,
+        summary = R.string.clearcache_msg,
+        onClick = {
+            if (!isPreview) {
+                viewModel!!.clearBrowserCache()
+                KcUtils.showToast(context.applicationContext, R.string.cache_cleared_toast)
+            }
+        }
+    )
+}
+
+@Composable
+private fun AppInfoSection(viewModel: SettingsViewModel?, onSettingChanged: (String) -> Unit) {
     val context = LocalContext.current
     val activity = context as? android.app.Activity
-    SectionHeader(R.string.settings_appinfo_label)
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
     ClickRow(
         title = R.string.settings_version_label,
-        summaryText = viewModel.getAppVersion(),
+        summaryText = if (isPreview) "3.0-rev9" else viewModel!!.getAppVersion(),
         onClick = {},
         enabled = false
     )
     ClickRow(
         title = R.string.settings_version_check,
-        onClick = { activity?.let { viewModel.checkAppUpdate(it) } }
+        onClick = { if (!isPreview) activity?.let { viewModel!!.checkAppUpdate(it) } }
     )
     ClickRow(
         title = R.string.settings_source_code,
         summaryText = GITHUB_GOTOBROWSER,
         onClick = { openUrl(context, GITHUB_GOTOBROWSER) }
+    )
+    ClickRow(
+        title = R.string.app_name,
+        summaryText = String.format(
+            Locale.US,
+            stringResource(id = R.string.copyright_format),
+            Calendar.getInstance().get(Calendar.YEAR)
+        ),
+        onClick = {},
+        enabled = false
     )
     SwitchRow(viewModel, PREF_DEVTOOLS_DEBUG, R.string.setting_devtools_enable, R.string.setting_devtools_description,
         onSettingChanged = onSettingChanged)
@@ -371,15 +568,17 @@ private fun AppInfoSection(viewModel: SettingsViewModel, onSettingChanged: (Stri
 
 @Composable
 private fun SwitchRow(
-    viewModel: SettingsViewModel,
+    viewModel: SettingsViewModel?,
     key: String,
     titleRes: Int,
     summaryRes: Int? = null,
+    defaultValue: Boolean = false,
     enabled: Boolean = true,
     onChanged: () -> Unit = {},
     onSettingChanged: (String) -> Unit = {}
 ) {
-    val checked = remember { mutableStateOf(viewModel.getBoolean(key, false)) }
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
+    val checked = remember { mutableStateOf(if (isPreview) defaultValue else viewModel!!.getBoolean(key, defaultValue)) }
     ListItem(
         headlineContent = { Text(stringResource(titleRes)) },
         supportingContent = summaryRes?.let { { Text(stringResource(it)) } },
@@ -389,7 +588,9 @@ private fun SwitchRow(
                 enabled = enabled,
                 onCheckedChange = {
                     checked.value = it
-                    viewModel.setBoolean(key, it)
+                    if (!isPreview) {
+                        viewModel!!.setBoolean(key, it)
+                    }
                     onChanged()
                     onSettingChanged(key)
                 }
@@ -398,7 +599,9 @@ private fun SwitchRow(
         modifier = Modifier.clickable(enabled = enabled) {
             val newValue = !checked.value
             checked.value = newValue
-            viewModel.setBoolean(key, newValue)
+            if (!isPreview) {
+                viewModel!!.setBoolean(key, newValue)
+            }
             onChanged()
             onSettingChanged(key)
         }
@@ -430,7 +633,7 @@ private fun ClickRow(
 
 @Composable
 private fun ListRow(
-    viewModel: SettingsViewModel,
+    viewModel: SettingsViewModel?,
     key: String,
     titleRes: Int,
     options: List<ListOption>,
@@ -442,7 +645,8 @@ private fun ListRow(
     onSelected: (String) -> Boolean = { true },
     onSettingChanged: (String) -> Unit = {}
 ) {
-    var selected by remember { mutableStateOf(viewModel.getString(key, options.first().value)) }
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
+    var selected by remember { mutableStateOf(if (isPreview) options.first().value else viewModel!!.getString(key, options.first().value)) }
     var showDialog by remember { mutableStateOf(false) }
 
     ListItem(
@@ -460,7 +664,9 @@ private fun ListRow(
             onSelect = { value ->
                 if (onSelected(value)) {
                     selected = value
-                    viewModel.setString(key, value)
+                    if (!isPreview) {
+                        viewModel!!.setString(key, value)
+                    }
                     onSettingChanged(key)
                 }
                 showDialog = false
@@ -616,3 +822,81 @@ private fun openUrl(context: Context, url: String) {
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
     context.startActivity(intent)
 }
+
+@Composable
+private fun LoginFormDialog(
+    initialId: String,
+    initialPassword: String,
+    onSave: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var loginId by remember { mutableStateOf(initialId) }
+    var loginPassword by remember { mutableStateOf(initialPassword) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.autocomplete_title)) },
+        text = {
+            Column {
+                Text(
+                    text = stringResource(id = R.string.autocomplete_msg),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = loginId,
+                    onValueChange = { loginId = it },
+                    label = { Text("DMM ID") },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = loginPassword,
+                    onValueChange = { loginPassword = it },
+                    label = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(loginId, loginPassword) }) {
+                Text(text = stringResource(id = R.string.text_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.text_cancel))
+            }
+        }
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Previews
+// ---------------------------------------------------------------------------
+
+@Preview(name = "Settings Bottom Sheet", showBackground = true, widthDp = 360, heightDp = 640)
+@Composable
+fun SettingsBottomSheetPreview() {
+    MaterialTheme {
+        Column {
+            SettingsBottomSheet(
+                viewModel = null,
+                onDismissRequest = {},
+                onSettingChanged = {}
+            )
+        }
+    }
+}
+
+private fun connectorOptions() = listOf(
+    ListOption("DMM direct", "DMM direct"),
+    ListOption("kancolle.moe", "kancolle.moe"),
+    ListOption("ooi.moe", "ooi.moe")
+)

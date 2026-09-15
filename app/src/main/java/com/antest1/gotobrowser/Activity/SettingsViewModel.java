@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.util.Log;
+import android.webkit.WebView;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
@@ -19,7 +20,9 @@ import com.antest1.gotobrowser.Helpers.KcUtils;
 import com.antest1.gotobrowser.Helpers.VersionDatabase;
 import com.antest1.gotobrowser.R;
 import com.antest1.gotobrowser.Subtitle.SubtitleProviderUtils;
+import com.antest1.gotobrowser.Helpers.KenPatcher;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Locale;
 
@@ -29,30 +32,23 @@ import static com.antest1.gotobrowser.Constants.GITHUBAPI_ROOT;
 import static com.antest1.gotobrowser.Constants.PREF_ALTER_ENDPOINT;
 import static com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD;
 import static com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD_PROXY;
-import static com.antest1.gotobrowser.Constants.PREF_APP_VERSION;
-import static com.antest1.gotobrowser.Constants.PREF_CHECK_UPDATE;
 import static com.antest1.gotobrowser.Constants.PREF_LEGACY_RENDERER;
-import static com.antest1.gotobrowser.Constants.PREF_MOD_KANTAI3D;
-import static com.antest1.gotobrowser.Constants.PREF_MOD_KANTAIEN_DELETE;
-import static com.antest1.gotobrowser.Constants.PREF_MOD_KANTAIEN_UPDATE;
 import static com.antest1.gotobrowser.Constants.PREF_MOD_KCCP_LANG_PATCH;
 import static com.antest1.gotobrowser.Constants.PREF_MOD_KCCP_LANG_PATCH_EN;
-import static com.antest1.gotobrowser.Constants.PREF_MOD_KCCP_LANG_PATCH_GITHUB;
 import static com.antest1.gotobrowser.Constants.PREF_MOD_KCCP_LANG_PATCH_ID;
 import static com.antest1.gotobrowser.Constants.PREF_MOD_KCCP_LANG_PATCH_NAME;
 import static com.antest1.gotobrowser.Constants.PREF_SUBTITLE_FONTSIZE;
 import static com.antest1.gotobrowser.Constants.PREF_SUBTITLE_LOCALE;
-import static com.antest1.gotobrowser.Constants.PREF_SUBTITLE_UPDATE;
-import static com.antest1.gotobrowser.Constants.PREF_USE_EXTCACHE;
 import static com.antest1.gotobrowser.Constants.VERSION_TABLE_VERSION;
+import static com.antest1.gotobrowser.Constants.CACHE_DIR;
 import static com.antest1.gotobrowser.Helpers.KcUtils.getRetrofitAdapter;
+import static com.antest1.gotobrowser.Helpers.KcUtils.clearApplicationCache;
 
 /**
  * Holds the observable state of the Compose settings screen and performs the
  * same side effects the old {@code SettingsFragment} (PreferenceFragmentCompat)
  * used to trigger. Async helpers that used to mutate Preference objects now
- * push updates back through {@link SettingsStatusHost}, which is implemented by
- * {@link SettingsActivity} and delegates to the LiveData exposed here.
+ * push updates back through {@link SettingsStatusHost}.
  */
 public class SettingsViewModel extends AndroidViewModel {
     /** Host context is not available while the screen is off-screen. */
@@ -233,6 +229,37 @@ public class SettingsViewModel extends AndroidViewModel {
 
     public void checkAppUpdate(android.app.Activity activity) {
         KcUtils.requestLatestAppVersion(activity, appCheck, true);
+    }
+
+    public void clearBrowserCache() {
+        Context context = getApplication().getApplicationContext();
+        // clear webview cache
+        WebView webview = new WebView(context);
+        webview.clearCache(true);
+
+        // clear version table
+        versionTable.clearVersionDatabase();
+
+        // clear internal cache dir
+        clearApplicationCache(context, context.getCacheDir());
+
+        // clear resource cache dir
+        File cache_dir = new File(KcUtils.getAppCacheFileDir(context, CACHE_DIR));
+        clearApplicationCache(context, cache_dir);
+
+        // clear legacy cache dir
+        File cache_old = new File(KcUtils.getAppCacheFileDir(context, "/cache/"));
+        if (cache_old.exists()) {
+            clearApplicationCache(context, cache_old);
+            cache_old.delete();
+        }
+
+        // clear patched cache dir
+        for (KenPatcher.PatchLanguage language : KenPatcher.PatchLanguage.values()) {
+            String folderName = "/_patched_cache_" + language.name().toLowerCase();
+            String patched_cache_dir = KcUtils.getAppCacheFileDir(context, folderName);
+            clearApplicationCache(context, new File(patched_cache_dir));
+        }
     }
 
     public void downloadSubtitleUpdate() {

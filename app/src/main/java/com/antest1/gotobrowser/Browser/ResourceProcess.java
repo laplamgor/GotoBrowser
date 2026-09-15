@@ -578,7 +578,7 @@ public class ResourceProcess {
 
     private WebResourceResponse processStylesheet(ResourceRequestInfo requestInfo) throws IOException {
         String url = requestInfo.url;
-        boolean is_adjustment = sharedPref.getBoolean(PREF_ADJUSTMENT, false);
+        boolean is_adjustment = sharedPref.getBoolean(PREF_ADJUSTMENT, true);
         if (is_adjustment) {
             AssetManager as = context.getAssets();
             if (url.contains("kcscontents/css/import.css")) {
