@@ -8,13 +8,15 @@
     <string name="select_server_toast">请先选择一个登入方式</string>
     <string name="cache_clear_text">清除快取</string>
     <string name="cache_cleared_toast">Webview快取已清除</string>
-    <string name="clearcache_msg">仅当图象或声音未正确载入时使用此选项，确认清除快取吗？</string>
+    <string name="clearcache_msg">当图片或声音无法正常加载，或需要切换登录方式时使用。清除后可能需要重新登录。</string>
+    <string name="thirdpartyconnector_msg">使用非官方网页代理连接（如 OOI）时，根据其政策，游戏资源可能与原始资源不同。GotoBrowser 不干预各连接的政策。如果不希望显示非官方资源，请清除缓存并使用 DMM Direct 进行游戏。</string>
     <string name="backpress_msg">再按一次返回键退出</string>
     <string name="refresh_msg">是否要刷新页面？</string>
-    <string name="mode_landscape">横向模式</string>
+    <string name="mode_landscape">仅限横向</string>
     <string name="mode_adjustment">自动调整佈局</string>
     <string name="mode_silent">以静音模式启动</string>
     <string name="mode_broadcast">使用广播讯息方式</string>
+    <string name="mode_broadcast_summary">将GotoBrowser与Kcanotify一起使用</string>
     <string name="mode_show_panel">启动时显示控制台</string>
     <string name="mode_enable_keyboard">允许键盘输入</string>
     <string name="button_start">开始游戏</string>
@@ -26,6 +28,12 @@
     <string name="settings_version_label">目前版本</string>
     <string name="settings_version_check">检查更新</string>
     <string name="settings_recommended_summary">推荐</string>
+    <string name="settings_display_label">显示</string>
+    <string name="settings_control_label">操作</string>
+    <string name="settings_download_label">缓存</string>
+    <string name="settings_connection_login_label">登录与连接</string>
+    <string name="settings_login_section_header">登录</string>
+    <string name="settings_bypass_section_header">登录服务器封锁绕行</string>
     <string name="settings_subtitle_label">字幕设定</string>
     <string name="settings_subtitle_fontsize" >字体大小</string>
     <string name="settings_subtitle_example" formatted="false">文字大小：%d</string>
@@ -36,7 +44,6 @@
     <string name="setting_latest_version">已是最新版本</string>
     <string name="setting_latest_download" formatted="false">已推出新版本 (%s)\n是否要下载？</string>
     <string name="setting_latest_download_subtitle" formatted="false">已推出新版本 (%s)</string>
-    <string name="settings_browsersettings">浏览器设定</string>
     <string name="browser_fontprefetch">预先载入字体</string>
     <string name="browser_enablepipmode">启用画中画模式</string>
     <string name="browser_disable_refresh_dialog">禁用重新加载确认</string>

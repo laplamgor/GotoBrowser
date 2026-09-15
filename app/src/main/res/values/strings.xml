@@ -12,14 +12,15 @@
     <string name="select_server_toast">Login method must be chosen first</string>
     <string name="cache_clear_text">Clear Cache</string>
     <string name="cache_cleared_toast">Webview cache cleared</string>
-    <string name="clearcache_msg">Only use this function when image or audio is not loaded properly. Do you really want to clear the cache?</string>
-    <string name="thirdpartyconnector_msg" translatable="false">In the case of non-official web proxy-based connectors (like OOI), the game resources may be different from the original ones, depending on their policy. Basically, GotoBrowser does not inference the policy of each connector. If you do not want to display unofficial resources with GotoBrowser, please clear the cache and play KanColle through DMM Direct.</string>
+    <string name="clearcache_msg">Use this when images or audio are not loading correctly, or to switch between login methods. You may need to log in again afterwards.</string>
+    <string name="thirdpartyconnector_msg">In the case of non-official web proxy-based connectors (like OOI), the game resources may be different from the original ones, depending on their policy. Basically, GotoBrowser does not inference the policy of each connector. If you do not want to display unofficial resources with GotoBrowser, please clear the cache and play KanColle through DMM Direct.</string>
     <string name="backpress_msg">Press back again to exit</string>
     <string name="refresh_msg">Do you really want to refresh?</string>
-    <string name="mode_landscape">Landscape Mode</string>
+    <string name="mode_landscape">Only Landscape</string>
     <string name="mode_adjustment">Auto Layout Adjustment</string>
     <string name="mode_silent">Start with Audio OFF</string>
     <string name="mode_broadcast">Broadcast Mode</string>
+    <string name="mode_broadcast_summary">Use GotoBrowser with Kcanotify</string>
     <string name="mode_show_panel">Show Control Panel on Start</string>
     <string name="mode_enable_keyboard">Enable Keyboard Input</string>
     <string name="button_start">START</string>
@@ -31,7 +32,13 @@
     <string name="settings_version_label">Current Version</string>
     <string name="settings_version_check">Check Update</string>
     <string name="settings_recommended_summary">Recommended</string>
-    <string name="settings_subtitle_label">Subtitle Settings</string>
+    <string name="settings_display_label">Display</string>
+    <string name="settings_control_label">Controls</string>
+    <string name="settings_download_label">Asset Caching</string>
+    <string name="settings_connection_login_label">Login and Connection</string>
+    <string name="settings_login_section_header">Login</string>
+    <string name="settings_bypass_section_header">Gadget Block Bypass</string>
+    <string name="settings_subtitle_label">Subtitle</string>
     <string name="settings_subtitle_fontsize">Font Size</string>
     <string name="settings_subtitle_example" formatted="false">TEXT SIZE: %d</string>
     <string name="settings_subtitle_download">Download Subtitle Data</string>
@@ -46,7 +53,6 @@
     <string name="github_link" translatable="false">https://github.com/antest1/GotoBrowser/</string>
     <string name="license_link" translatable="false">https://github.com/antest1/GotoBrowser/blob/master/LICENSE</string>
     <string name="manual_link" translatable="false">https://luckyjervis.com/gotobrowser/docs/?from_app=true</string>
-    <string name="settings_browsersettings">Browser Settings</string>
     <string name="browser_fontprefetch">Prefetch Font Assets</string>
     <string name="browser_enablepipmode">Picture-in-picture mode</string>
     <string name="browser_disable_refresh_dialog">Disable Refresh Warning Dialog</string>
@@ -74,9 +80,9 @@
     <string name="setting_alter_method_proxy">KCCacheProxy (remote)</string>
     <string name="setting_alter_method_proxy_error_toast">KCCacheProxy Endpoint Server is invalid. Please update your Bypass Method setting.</string>
     <string name="setting_alter_endpoint">Bypass Endpoint Server</string>
-    <string name="setting_cursor_mode">Input Mode</string>
-    <string name="setting_cursor_mode_touch">Screen Touch</string>
-    <string name="setting_cursor_mode_mouse">Using Mouse</string>
+    <string name="setting_cursor_mode">Optimize Pointer Device</string>
+    <string name="setting_cursor_mode_touch">Touch Screen</string>
+    <string name="setting_cursor_mode_mouse">Mouse or Trackpad</string>
 
     <string name="menu_tooltip_refresh">Refresh</string>
     <string name="menu_tooltip_mute">Mute Audio</string>
