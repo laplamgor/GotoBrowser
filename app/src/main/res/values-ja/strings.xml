@@ -37,7 +37,7 @@
     <string name="setting_latest_version">最新バージョンです。</string>
     <string name="setting_latest_download" formatted="false">アップデートがあります。(%s)\nダウンロードしますか？</string>
     <string name="setting_latest_download_subtitle" formatted="false">アップデートがあります。(%s)</string>
-    <string name="settings_appinfo_browsersettings">ブラウザ設定</string>
+    <string name="settings_browsersettings">ブラウザ設定</string>
     <string name="browser_fontprefetch">フォントをプリロード</string>
     <string name="browser_enablepipmode">PIPモードを有効にする</string>
     <string name="browser_disable_refresh_dialog">再読み込み確認を無効にする</string>
@@ -124,4 +124,9 @@
     <string name="dialog_ipblock_message" formatted="false">メイン画面で「%s」オプションを有効にしてください。（設定でも有効にできます）</string>
     <string name="kcanotify_broadcast_dialog_title">Kcanotifyが検出されました</string>
     <string name="kcanotify_broadcast_dialog_message" formatted="false">GotoBrowserをKcanotifyと一緒に使用するには、「%s」を有効にする必要があります。%sをクリックして有効にしますか?</string>
+    <string name="settings_menu_tooltip">設定</string>
+    <string name="settings_refresh_required_title">再読み込みが必要です</string>
+    <string name="settings_refresh_required_msg">設定が保存されました。効果を有効にするにはゲームの再読み込みが必要です。今すぐ再読み込みしますか？</string>
+    <string name="settings_refresh_now">今すぐ再読み込み</string>
+    <string name="settings_refresh_later">再読み込みせずに設定を変更</string>
 </resources>

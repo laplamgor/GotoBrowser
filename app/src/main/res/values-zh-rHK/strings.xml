@@ -36,7 +36,7 @@
     <string name="setting_latest_version">已是最新版本</string>
     <string name="setting_latest_download" formatted="false">已推出新版本 (%s)\n是否要下載？</string>
     <string name="setting_latest_download_subtitle" formatted="false">已推出新版本 (%s)</string>
-    <string name="settings_appinfo_browsersettings">瀏覽器設定</string>
+    <string name="settings_browsersettings">瀏覽器設定</string>
     <string name="browser_fontprefetch">預先載入字體</string>
     <string name="browser_enablepipmode">啟用畫中畫模式</string>
     <string name="browser_disable_refresh_dialog">禁用重新加載確認</string>
@@ -123,5 +123,10 @@
     <string name="dialog_ipblock_title">檢測到外國IP封锁</string>
     <string name="dialog_ipblock_message" formatted="false">請在主荧幕或設定中啟動「%s」選項。</string>
     <string name="kcanotify_broadcast_dialog_title">檢測到Kcanotify</string>
-    <string name="kcanotify_broadcast_dialog_message" formatted="false">若要將GotoBrowser與Kcanotify一起使用，必須啟動「%s」。 您想通過按一下%s啟動它嗎？</string>
+    <string name="kcanotify_broadcast_dialog_message" formatted="false">若要將GotoBrowser与Kcanotify一起使用，必須啟動「%s」。 您想通過按一下%s啟動它嗎？</string>
+    <string name="settings_menu_tooltip">設定</string>
+    <string name="settings_refresh_required_title">需要重新載入</string>
+    <string name="settings_refresh_required_msg">設定已儲存。需要重新載入遊戲才能生效。你想現在重新載入嗎？</string>
+    <string name="settings_refresh_now">現在重新載入</string>
+    <string name="settings_refresh_later">暫不重新載入</string>
 </resources>

@@ -20,6 +20,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.SslErrorHandler
+import androidx.browser.customtabs.CustomTabColorSchemeParams
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.annotation.RequiresApi
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -201,6 +203,7 @@ class BrowserActivity : ComponentActivity() {
                         PanelButton(id = R.drawable.exit_to_app, onClick = { showLogoutDialog() })
                         // Settings sits second-last, just before the close button.
                         PanelButton(id = R.drawable.settings, onClick = { settingsSheetVisible.value = true })
+                        PanelButton(id = R.drawable.help_icon, onClick = { openManual(this@BrowserActivity) })
 
                         Spacer(modifier = Modifier.height(4.dp))
                         IconButton(onClick = { toolbarVisible.value = false }) {
@@ -564,6 +567,26 @@ class BrowserActivity : ComponentActivity() {
     private fun supportsPiPMode(): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
     }
+
+    private fun openManual(context: Context) {
+        val url = context.getString(R.string.manual_link)
+        val intentBuilder = CustomTabsIntent.Builder()
+        intentBuilder.setShowTitle(true)
+        val params = CustomTabColorSchemeParams.Builder()
+            .setToolbarColor(ContextCompat.getColor(context, R.color.colorSettingsBackground))
+            .build()
+        intentBuilder.setDefaultColorSchemeParams(params)
+        intentBuilder.setUrlBarHidingEnabled(true)
+
+        val customTabsIntent = intentBuilder.build()
+        val customTabsApps = context.packageManager.queryIntentActivities(customTabsIntent.intent, 0)
+        if (customTabsApps.isNotEmpty()) {
+            customTabsIntent.launchUrl(context, Uri.parse(url))
+        } else {
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            context.startActivity(browserIntent)
+        }
+    }
 }
 
 // Top-level so both the activity's floating toolbar and the IDE preview can use it.
@@ -860,6 +883,7 @@ fun BrowserScreenPreview() {
                 PanelButton(id = R.drawable.caption_icon, active = true, onClick = {})
                 PanelButton(id = R.drawable.exit_to_app, onClick = {})
                 PanelButton(id = R.drawable.settings, onClick = {})
+                PanelButton(id = R.drawable.help_icon, onClick = {})
                 Spacer(modifier = Modifier.height(4.dp))
                 IconButton(onClick = {}) {
                     Icon(painterResource(id = R.drawable.close_icon), "Close", tint = Color.White)

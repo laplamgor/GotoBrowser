@@ -42,7 +42,7 @@ public class KcsInterface {
         packetTable = new KcaPacketStore(ac.getApplicationContext(), null, PACKETSTORE_VERSION);
         SharedPreferences sharedPref = activity.getSharedPreferences(
                 activity.getString(R.string.preference_key), Context.MODE_PRIVATE);
-        broadcast_mode = sharedPref.getBoolean(PREF_BROADCAST, false);
+        broadcast_mode = sharedPref.getBoolean(PREF_BROADCAST, true);
         use_devtools = sharedPref.getBoolean(PREF_DEVTOOLS_DEBUG, false);
     }
 

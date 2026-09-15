@@ -118,8 +118,8 @@ fun EntranceScreen(viewModel: EntranceViewModel) {
 
     val connector by viewModel.connector.observeAsState(CONN_DMM)
     val silentMode by viewModel.silentMode.observeAsState(false)
-    val broadcastMode by viewModel.broadcastMode.observeAsState(false)
-    val panelStart by viewModel.panelStart.observeAsState(false)
+    val broadcastMode by viewModel.broadcastMode.observeAsState(true)
+    val panelStart by viewModel.panelStart.observeAsState(true)
 
     var showLoginForm by remember { mutableStateOf(false) }
 
