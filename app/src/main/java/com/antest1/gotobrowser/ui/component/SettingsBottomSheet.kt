@@ -140,7 +140,8 @@ fun SettingsBottomSheet(
     viewModel: SettingsViewModel?,
     activity: android.app.Activity?,
     onDismissRequest: () -> Unit,
-    onSettingChanged: (String) -> Unit
+    onSettingChanged: (String) -> Unit,
+    onLogoutRequest: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val snackbarHostState = remember { SnackbarHostState() }
@@ -216,7 +217,8 @@ fun SettingsBottomSheet(
                     onScreenChanged = { currentScreen = it },
                     modifier = Modifier.fillMaxWidth(),
                     onDismissRequest = onDismissRequest,
-                    onSettingChanged = onSettingChanged
+                    onSettingChanged = onSettingChanged,
+                    onLogoutRequest = onLogoutRequest
                 )
                 // Rendered inside the sheet so its messages appear above the
                 // sheet's own window rather than behind it. Padding keeps it
@@ -251,7 +253,8 @@ fun SettingsContent(
     onScreenChanged: (SettingsScreen) -> Unit,
     modifier: Modifier = Modifier,
     onDismissRequest: () -> Unit = {},
-    onSettingChanged: (String) -> Unit = {}
+    onSettingChanged: (String) -> Unit = {},
+    onLogoutRequest: () -> Unit = {}
 ) {
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
 
@@ -323,7 +326,7 @@ fun SettingsContent(
                 SubtitleSection(viewModel, subtitleSummary, subtitleEnabled, onSettingChanged)
             }
             SettingsScreen.CONNECTION_LOGIN -> {
-                ConnectionLoginSection(viewModel, snackbarHostState, onSettingChanged)
+                ConnectionLoginSection(viewModel, snackbarHostState, onSettingChanged, onLogoutRequest)
             }
             SettingsScreen.MODS -> {
                 ModsSection(
@@ -424,7 +427,12 @@ private fun SubtitleSection(viewModel: SettingsViewModel?, subtitleSummary: Stri
 }
 
 @Composable
-private fun ConnectionLoginSection(viewModel: SettingsViewModel?, snackbarHostState: SnackbarHostState, onSettingChanged: (String) -> Unit) {
+private fun ConnectionLoginSection(
+    viewModel: SettingsViewModel?,
+    snackbarHostState: SnackbarHostState,
+    onSettingChanged: (String) -> Unit,
+    onLogoutRequest: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
@@ -454,6 +462,11 @@ private fun ConnectionLoginSection(viewModel: SettingsViewModel?, snackbarHostSt
             onDismiss = { showLoginForm = false }
         )
     }
+
+    ClickRow(
+        title = R.string.menu_tooltip_logout,
+        onClick = onLogoutRequest
+    )
 
     // Shown when the user switches to an unofficial connector for the first time.
     var showDisclaimer by remember { mutableStateOf(false) }
@@ -1096,6 +1109,7 @@ fun SettingsBottomSheetPreview() {
                 viewModel = null,
                 activity = null,
                 onDismissRequest = {},
+                onLogoutRequest = {},
                 onSettingChanged = {}
             )
         }

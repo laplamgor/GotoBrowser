@@ -217,15 +217,8 @@ class BrowserActivity : ComponentActivity() {
                         if (viewModel.k3dPatcher.isPatcherEnabled) {
                             PanelButton(id = R.drawable.kantai3d_icon, onClick = { isK3dDialogVisible.value = true })
                         }
-                        PanelButton(id = R.drawable.exit_to_app, onClick = { showLogoutDialog() })
-                        // Settings sits second-last, just before the close button.
                         PanelButton(id = R.drawable.settings, onClick = { settingsSheetVisible.value = true })
                         PanelButton(id = R.drawable.help_icon, onClick = { openManual(this@BrowserActivity) })
-
-                        Spacer(modifier = Modifier.height(4.dp))
-                        IconButton(onClick = { toolbarVisible.value = false }) {
-                            Icon(painterResource(id = R.drawable.close_icon), "Close", tint = Color.White)
-                        }
                     }
 
                     if (isK3dDialogVisible.value) {
@@ -244,6 +237,13 @@ class BrowserActivity : ComponentActivity() {
                             viewModel = settingsViewModel,
                             activity = this@BrowserActivity,
                             onDismissRequest = { settingsSheetVisible.value = false },
+                            onLogoutRequest = {
+                                // Close the sheet first, then show the dialog on the
+                                // activity's window so it is not hidden behind the
+                                // sheet's own window.
+                                settingsSheetVisible.value = false
+                                showLogoutDialog()
+                            },
                             onSettingChanged = { key ->
                                 if (key in liveSettings) {
                                     // Applied to the running browser; no reload needed.
@@ -515,11 +515,7 @@ class BrowserActivity : ComponentActivity() {
             .setCancelable(false)
             .setMessage(getString(R.string.logout_msg))
             .setPositiveButton(R.string.action_ok) { _, _ ->
-                if (manager != null) {
-                    mContentView?.let { manager?.logoutGame(it) }
-                } else {
-                    finish()
-                }
+                mContentView?.let { manager?.logoutGame(it) }
             }
             .setNegativeButton(R.string.action_cancel) { dialog, _ ->
                 dialog.cancel()
@@ -937,13 +933,8 @@ fun BrowserScreenPreview() {
                 PanelButton(id = R.drawable.screen_lock, onClick = {})
                 PanelButton(id = R.drawable.light_mode, onClick = {})
                 PanelButton(id = R.drawable.caption_icon, active = true, onClick = {})
-                PanelButton(id = R.drawable.exit_to_app, onClick = {})
                 PanelButton(id = R.drawable.settings, onClick = {})
                 PanelButton(id = R.drawable.help_icon, onClick = {})
-                Spacer(modifier = Modifier.height(4.dp))
-                IconButton(onClick = {}) {
-                    Icon(painterResource(id = R.drawable.close_icon), "Close", tint = Color.White)
-                }
             }
         }
     }
