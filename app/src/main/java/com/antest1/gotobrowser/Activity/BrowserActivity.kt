@@ -173,7 +173,6 @@ class BrowserActivity : ComponentActivity() {
         manager = WebViewManager(this)
         manager?.setDataDirectorySuffix()
 
-        WebViewManager.clearKcCacheProxy()
         // The cache proxy must be installed before the WebView loads anything,
         // so this runs before setContent() rather than once the page appears.
         // Only DMM direct is rewritten through the proxy; the other connectors
@@ -186,6 +185,8 @@ class BrowserActivity : ComponentActivity() {
             WebViewManager.setKcCacheProxy(alterEndpoint, {}, {
                 KcUtils.showToast(applicationContext, R.string.setting_alter_method_proxy_error_toast)
             })
+        } else {
+            WebViewManager.clearKcCacheProxy()
         }
 
         // Deferred until the content view exists, because the update check and
