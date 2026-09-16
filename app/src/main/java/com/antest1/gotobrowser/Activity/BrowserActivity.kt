@@ -77,7 +77,14 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.antest1.gotobrowser.Browser.WebViewL
 import com.antest1.gotobrowser.Browser.WebViewManager
 import com.antest1.gotobrowser.BuildConfig
+import com.antest1.gotobrowser.Constants.CONN_DMM
+import com.antest1.gotobrowser.Constants.DEFAULT_ALTER_GADGET_URL
 import com.antest1.gotobrowser.Constants.DEFAULT_SUBTITLE_FONT_SIZE
+import com.antest1.gotobrowser.Constants.PREF_ALTER_ENDPOINT
+import com.antest1.gotobrowser.Constants.PREF_ALTER_GADGET
+import com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD
+import com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD_PROXY
+import com.antest1.gotobrowser.Constants.PREF_CONNECTOR
 import com.antest1.gotobrowser.Constants.PREF_BROADCAST
 import com.antest1.gotobrowser.Constants.PREF_DOWNLOAD_RETRY
 import com.antest1.gotobrowser.Constants.PREF_KEYBOARD
@@ -151,7 +158,6 @@ class BrowserActivity : ComponentActivity() {
         sendIsFrontChanged(true)
 
         val intent = getIntent()
-        viewModel.isKcBrowserMode = WebViewManager.OPEN_KANCOLLE == intent.action || Intent.ACTION_MAIN == intent.action
         // Only on a real cold launch: the URL opened by a share intent, a
         // configuration change or coming back from PiP should not re-check.
         val isAppLaunch = Intent.ACTION_MAIN == intent.action && savedInstanceState == null
@@ -167,6 +173,19 @@ class BrowserActivity : ComponentActivity() {
         manager?.setDataDirectorySuffix()
 
         WebViewManager.clearKcCacheProxy()
+        // The cache proxy must be installed before the WebView loads anything,
+        // so this runs before setContent() rather than once the page appears.
+        // Only DMM direct is rewritten through the proxy; the other connectors
+        // are patched through shouldInterceptRequest() instead.
+        val prefAlterGadget = viewModel.sharedPref.getBoolean(PREF_ALTER_GADGET, false)
+        val isProxyMethod = PREF_ALTER_METHOD_PROXY == viewModel.sharedPref.getString(PREF_ALTER_METHOD, "")
+        val alterEndpoint = viewModel.sharedPref.getString(PREF_ALTER_ENDPOINT, DEFAULT_ALTER_GADGET_URL)
+        val prefConnector = viewModel.sharedPref.getString(PREF_CONNECTOR, CONN_DMM)
+        if (prefAlterGadget && isProxyMethod && CONN_DMM == prefConnector) {
+            WebViewManager.setKcCacheProxy(alterEndpoint, {}, {
+                KcUtils.showToast(applicationContext, R.string.setting_alter_method_proxy_error_toast)
+            })
+        }
 
         // Deferred until the content view exists, because the update check and
         // the Kcanotify warning both attach to android.R.id.content.
@@ -279,7 +298,6 @@ class BrowserActivity : ComponentActivity() {
         hideSystemBars()
     }
 
-    fun isKcMode(): Boolean = viewModel.isKcBrowserMode
     fun isMuteMode(): Boolean = java.lang.Boolean.TRUE == viewModel.isMuteMode.value
     fun isCaptionAvailable(): Boolean = java.lang.Boolean.TRUE == viewModel.isCaptionMode.value
     fun isSubtitleAvailable(): Boolean = viewModel.isSubtitleLoaded
@@ -481,7 +499,7 @@ class BrowserActivity : ComponentActivity() {
     }
 
     private fun refreshPageOrFinish() {
-        viewModel.connectorInfo = WebViewManager.getDefaultPage(this, viewModel.isKcBrowserMode)
+        viewModel.connectorInfo = WebViewManager.getDefaultPage(this)
         val info = viewModel.connectorInfo
         if (manager != null && info != null && info.size == 2) {
             mContentView?.let { manager?.refreshPage(it) }
@@ -843,14 +861,14 @@ fun BrowserScreenContent(
                         manager?.setHardwareAcceleratedFlag()
                         activity.applyKeyboardSetting()
                         // Initial setup...
-                        viewModel.connectorInfo = WebViewManager.getDefaultPage(activity, viewModel.isKcBrowserMode)
+                        viewModel.connectorInfo = WebViewManager.getDefaultPage(activity)
                         val info = viewModel.connectorInfo
                         if (info != null && info.size == 2) {
                             manager?.setWebViewSettings(this)
                             WebViewManager.enableBrowserCookie(this)
                             manager?.setWebViewClient(activity, this)
                             manager?.setPopupView(this)
-                            manager?.openPage(this, info, viewModel.isKcBrowserMode)
+                            manager?.openPage(this, info)
                         }
                     }
                 },
@@ -881,7 +899,7 @@ fun BrowserScreenContent(
         }
 
         BrowserOverlayLayer(
-            showSubtitle = viewModel.isKcBrowserMode && isCaption,
+            showSubtitle = isCaption,
             subtitleText = currentSubtitle,
             subtitleVisible = subtitleVisible.value,
             subtitleFontSize = subtitleFontSize.value,
