@@ -150,6 +150,7 @@ class BrowserActivity : ComponentActivity() {
     @SuppressLint("SourceLockedOrientationActivity", "ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         viewModel = ViewModelProvider(this)[BrowserViewModel::class.java]
         settingsViewModel = ViewModelProvider(this)[SettingsViewModel::class.java]
         screenshotNotification = ScreenshotNotification(this)
@@ -199,6 +200,11 @@ class BrowserActivity : ComponentActivity() {
         setContent {
             GotobrowserTheme {
                 val isK3dDialogVisible = remember { mutableStateOf(false) }
+
+                LaunchedEffect(settingsSheetVisible.value, isK3dDialogVisible.value, refreshPromptVisible.value) {
+                    hideSystemBars()
+                }
+
                 Box(modifier = Modifier.fillMaxSize()) {
                     BrowserScreenContent(
                         viewModel = viewModel,
