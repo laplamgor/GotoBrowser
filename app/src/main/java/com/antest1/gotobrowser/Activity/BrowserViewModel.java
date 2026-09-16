@@ -39,7 +39,6 @@ public class BrowserViewModel extends AndroidViewModel {
     private final MutableLiveData<Boolean> isCaptionMode = new MutableLiveData<>();
     private final MutableLiveData<Boolean> isNoRefreshPopupMode = new MutableLiveData<>();
     
-    private final MutableLiveData<Boolean> isKcBrowserMode = new MutableLiveData<>(false);
     private final MutableLiveData<Boolean> isStartedFlag = new MutableLiveData<>(false);
     private final MutableLiveData<Boolean> isAdjustChangedByUser = new MutableLiveData<>(false);
     private final MutableLiveData<Boolean> isSubtitleLoaded = new MutableLiveData<>(false);
@@ -120,9 +119,6 @@ public class BrowserViewModel extends AndroidViewModel {
 
     public List<String> getConnectorInfo() { return connectorInfo; }
     public void setConnectorInfo(List<String> info) { this.connectorInfo = info; }
-
-    public boolean isKcBrowserMode() { return Boolean.TRUE.equals(isKcBrowserMode.getValue()); }
-    public void setKcBrowserMode(boolean value) { isKcBrowserMode.setValue(value); }
 
     public boolean isStartedFlag() { return Boolean.TRUE.equals(isStartedFlag.getValue()); }
     public void setStartedFlag(boolean value) { isStartedFlag.setValue(value); }
