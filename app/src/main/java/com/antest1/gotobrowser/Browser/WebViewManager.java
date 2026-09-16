@@ -113,13 +113,12 @@ public class WebViewManager {
         boolean is_kcbrowser_mode = activity.isKcMode();
         webview.addJavascriptInterface(new KcsInterface(activity), GOTO_ANDROID);
         webview.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageStarted(WebView view, String url, Bitmap favicon) {
-                super.onPageStarted(view, url, favicon);
-                if (logoutFlag) closeWebView();
-            }
-
             public void onPageFinished(WebView view, String url) {
+                if (logoutFlag && !url.contains("about:blank")) {
+                    logoutFlag = false;
+                    refreshPage(webview);
+                    return;
+                }
                 runLoginLogoutScript(webview, url);
                 if (is_kcbrowser_mode) {
                     sharedPref.edit().putString(PREF_LATEST_URL, url).apply();
@@ -133,12 +132,7 @@ public class WebViewManager {
                     }
                     if (url.contains("about:blank") && refreshFlag) {
                         refreshFlag = false;
-                        String pref_connector = sharedPref.getString(PREF_CONNECTOR, CONN_DMM);
-                        if (CONN_DMM.equals(pref_connector)) {
-                            openPage(webview, getDefaultPage(activity, true), true);
-                        } else {
-                            if (webview.canGoBack()) webview.goBack();
-                        }
+                        openPage(webview, getDefaultPage(activity, true), true);
                         webview.resumeTimers();
                     }
                 }
@@ -299,14 +293,24 @@ public class WebViewManager {
         }
     }
 
+    /**
+     * Loads the connector's logout URL, invalidating the session. onPageFinished()
+     * then takes the browser back to the connector's start page, which now shows
+     * the login form.
+     */
     public void logoutGame(WebViewL webview) {
-        logoutFlag = true;
         String pref_connector = sharedPref.getString(PREF_CONNECTOR, CONN_DMM);
         switch (pref_connector) {
             case CONN_DMM -> webview.loadUrl(URL_DMM_LOGOUT);
             case CONN_OOI -> webview.loadUrl(URL_OOI_LOGOUT);
             case CONN_KANMOE -> webview.loadUrl(URL_KANMOE_LOGOUT);
+            // Nothing to load, so leave logoutFlag untouched rather than arming
+            // a flow that waits for a page that will never arrive.
+            default -> {
+                return;
+            }
         }
+        logoutFlag = true;
     }
 
     public void refreshPage(WebViewL webview) {
