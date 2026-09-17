@@ -3,7 +3,6 @@ package com.antest1.gotobrowser.Browser;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
@@ -14,7 +13,6 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.WindowManager;
 import android.webkit.WebResourceResponse;
-import android.widget.TextView;
 
 import com.antest1.gotobrowser.Activity.BrowserActivity;
 import com.antest1.gotobrowser.Helpers.CritPatcher;
@@ -568,9 +566,8 @@ public class ResourceProcess {
             String main_js = patchMainScript(new String(byteArray, StandardCharsets.UTF_8), silent_mode);
             InputStream is = new ByteArrayInputStream(main_js.getBytes());
             return new WebResourceResponse("application/javascript", "utf-8", is);
-        } else {
-            return null;
         }
+        return null;
     }
 
     private WebResourceResponse processStylesheet(ResourceRequestInfo requestInfo) throws IOException {
@@ -1048,9 +1045,10 @@ public class ResourceProcess {
                     String ptFolder = "/patched/";
                     boolean patchFound = false;
 
-                    Reader reader = new FileReader(metadataFile);
-                    JsonObject metadata = new JsonParser().parse(reader).getAsJsonObject();
-                    reader.close();
+                    JsonObject metadata;
+                    try (Reader reader = new FileReader(metadataFile)) {
+                        metadata = JsonParser.parseReader(reader).getAsJsonObject();
+                    }
 
                     JsonObject frames = metadata.getAsJsonObject("frames");
 

@@ -88,6 +88,12 @@ import static android.webkit.WebViewClient.*;
 public class KcUtils {
     private static final FirebaseCrashlytics crashlytics = FirebaseCrashlytics.getInstance();
 
+    private static final Gson gson = new Gson();
+
+    public static Gson getGson() {
+        return gson;
+    }
+
     public static void showToast(Context context, String message) {
         Toast.makeText(context, message, Toast.LENGTH_LONG).show();
     }
@@ -317,7 +323,7 @@ public class KcUtils {
 
         OkHttpClient client = builder.build();
         return new Retrofit.Builder()
-                .addConverterFactory(GsonConverterFactory.create())
+                .addConverterFactory(GsonConverterFactory.create(getGson()))
                 .baseUrl(baseUrl)
                 .client(client).build();
     }
@@ -336,22 +342,24 @@ public class KcUtils {
     }
 
     public static JsonObject parseJsonObject(String data) {
-        final Gson gson = new Gson();
-        return gson.fromJson(data, JsonObject.class);
+        return getGson().fromJson(data, JsonObject.class);
     }
 
     public static JsonArray parseJsonArray(String data) {
-        final Gson gson = new Gson();
-        return gson.fromJson(data, JsonArray.class);
+        return getGson().fromJson(data, JsonArray.class);
+    }
+
+    public static JsonObject parseJsonObject(java.io.Reader reader) {
+        return getGson().fromJson(reader, JsonObject.class);
+    }
+
+    public static JsonArray parseJsonArray(java.io.Reader reader) {
+        return getGson().fromJson(reader, JsonArray.class);
     }
 
     public static JsonObject readJsonObjectFromFile(String path) {
-        try {
-            final BufferedReader reader = new BufferedReader(new FileReader(path));
-            String line;
-            StringBuilder sb = new StringBuilder();
-            while ((line = reader.readLine()) != null) sb.append(line);
-            return parseJsonObject(sb.toString());
+        try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
+            return getGson().fromJson(reader, JsonObject.class);
         } catch (IOException e) {
             KcUtils.reportException(e);
         }
