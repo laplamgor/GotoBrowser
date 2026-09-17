@@ -26,6 +26,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Reader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
@@ -181,7 +182,9 @@ public class KcEnUtils {
                     if (response.code() == 200) {
                         ResponseBody body = response.body();
                         if (body != null) {
-                            return parseJsonObject(body.string());
+                            try (Reader reader = body.charStream()) {
+                                return parseJsonObject(reader);
+                            }
                         }
                     } else {
                         resultData.addProperty("error", String.valueOf(response.code()));
@@ -215,7 +218,9 @@ public class KcEnUtils {
                     if (response.code() == 200) {
                         ResponseBody body = response.body();
                         if (body != null) {
-                            return parseJsonArray(body.string());
+                            try (Reader reader = body.charStream()) {
+                                return parseJsonArray(reader);
+                            }
                         }
                     }
                 } catch (IOException e) {
@@ -469,11 +474,13 @@ public class KcEnUtils {
 
     private static String getLatestCommit(OkHttpClient client) throws IOException {
         Request request = new Request.Builder().url(ENPATCH_COMMIT_URL()).build();
-        Response response = client.newCall(request).execute();
-
-        if (response.isSuccessful() && response.body() != null) {
-            JsonObject json = parseJsonObject(response.body().string());
-            return json.get("sha").getAsString();
+        try (Response response = client.newCall(request).execute()) {
+            if (response.isSuccessful() && response.body() != null) {
+                try (Reader reader = response.body().charStream()) {
+                    JsonObject json = parseJsonObject(reader);
+                    return json.get("sha").getAsString();
+                }
+            }
         }
         return null;
     }
@@ -648,10 +655,12 @@ public class KcEnUtils {
                     + oldSha + "..." + newSha;
 
             Request request = new Request.Builder().url(url).build();
-            Response response = client.newCall(request).execute();
-
-            if (response.isSuccessful() && response.body() != null) {
-                return parseJsonObject(response.body().string());
+            try (Response response = client.newCall(request).execute()) {
+                if (response.isSuccessful() && response.body() != null) {
+                    try (Reader reader = response.body().charStream()) {
+                        return parseJsonObject(reader);
+                    }
+                }
             }
 
             return null;

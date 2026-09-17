@@ -9,7 +9,6 @@ import com.antest1.gotobrowser.Activity.SettingsStatusHost;
 import com.antest1.gotobrowser.Helpers.KcUtils;
 import com.antest1.gotobrowser.Helpers.VersionDatabase;
 import com.antest1.gotobrowser.R;
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -202,11 +201,9 @@ public class Kc3SubtitleProvider implements SubtitleProvider {
 
     private void loadQuoteAnnotation(Context context) {
         AssetManager as = context.getAssets();
-        try {
-            final Gson gson = new Gson();
-            final BufferedReader reader = new BufferedReader(new InputStreamReader(
-                    as.open("quotes_label.json")));
-            quoteLabel = gson.fromJson(reader, JsonObject.class);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                as.open("quotes_label.json")))) {
+            quoteLabel = KcUtils.getGson().fromJson(reader, JsonObject.class);
         } catch (IOException e) {
             reportException(e);
             e.printStackTrace();
