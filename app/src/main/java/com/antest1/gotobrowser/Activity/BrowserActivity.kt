@@ -43,6 +43,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
@@ -93,6 +95,7 @@ import com.antest1.gotobrowser.Constants.PREF_MULTIWIN_MARGIN
 import com.antest1.gotobrowser.Constants.PREF_PANELSTART
 import com.antest1.gotobrowser.Constants.PREF_PIP_MODE
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_FONTSIZE
+import com.antest1.gotobrowser.Constants.PREF_DISABLE_REFRESH_DIALOG
 import com.antest1.gotobrowser.Constants.REQUEST_NOTIFICATION_PERMISSION
 import com.antest1.gotobrowser.Helpers.BackPressCloseHandler
 import com.antest1.gotobrowser.Helpers.KcUtils
@@ -115,11 +118,11 @@ class BrowserActivity : ComponentActivity() {
     private lateinit var viewModel: BrowserViewModel
     private lateinit var settingsViewModel: SettingsViewModel
     private var manager: WebViewManager? = null
-    private var mContentView: WebViewL? = null
+    var mContentView: WebViewL? = null
     private lateinit var screenshotNotification: ScreenshotNotification
     private lateinit var backPressCloseHandler: BackPressCloseHandler
 
-    private var isInPictureInPictureMode: Boolean = false
+    val isInPictureInPictureModeState = mutableStateOf(false)
     private val errorText = mutableStateOf("")
     private val subtitleTextValue = mutableStateOf("")
     private val closeButtonVisible = mutableStateOf(false)
@@ -144,7 +147,10 @@ class BrowserActivity : ComponentActivity() {
         PREF_LANDSCAPE,
         PREF_MULTIWIN_MARGIN,
         PREF_SUBTITLE_FONTSIZE,
-        PREF_DOWNLOAD_RETRY
+        PREF_DOWNLOAD_RETRY,
+        PREF_PIP_MODE,
+        PREF_PANELSTART,
+        PREF_DISABLE_REFRESH_DIALOG
     )
 
     @SuppressLint("SourceLockedOrientationActivity", "ClickableViewAccessibility")
@@ -215,7 +221,10 @@ class BrowserActivity : ComponentActivity() {
                         subtitleFontSize = subtitleFontSize,
                         multiwinMarginDp = multiwinMarginDp,
                         manager = manager,
-                        onViewCreated = { mContentView = it },
+                        onViewCreated = { 
+                            mContentView = it 
+                            setupSmoothPipAnimation()
+                        },
                         intent = intent,
                         activity = this@BrowserActivity,
                         onBackgroundTap = { toolbarVisible.value = !toolbarVisible.value }
@@ -352,6 +361,14 @@ class BrowserActivity : ComponentActivity() {
                 // Read lazily by ResourceProcess right before each retry prompt,
                 // so nothing to do here.
             }
+            PREF_PIP_MODE -> {
+                // Instantly re-initialize or update PiP animation setup
+                setupSmoothPipAnimation()
+            }
+            PREF_PANELSTART, PREF_DISABLE_REFRESH_DIALOG -> {
+                // Modifies cold start preferences or alert behaviors lazily,
+                // so no live engine action is needed here.
+            }
         }
     }
 
@@ -397,6 +414,15 @@ class BrowserActivity : ComponentActivity() {
         val pipEnabled = viewModel.sharedPref.getBoolean(PREF_PIP_MODE, false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && supportsPiPMode() && pipEnabled) {
             val sourceRectHint = Rect()
+            mContentView?.getGlobalVisibleRect(sourceRectHint)
+            setPictureInPictureParams(
+                PictureInPictureParams.Builder()
+                    .setSeamlessResizeEnabled(false)
+                    .setSourceRectHint(sourceRectHint)
+                    .setAutoEnterEnabled(true)
+                    .setAspectRatio(Rational(1200, 720))
+                    .build()
+            )
             mContentView?.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
                 if (left != oldLeft || right != oldRight || top != oldTop || bottom != oldBottom) {
                     mContentView?.getGlobalVisibleRect(sourceRectHint)
@@ -409,6 +435,25 @@ class BrowserActivity : ComponentActivity() {
                             .build()
                     )
                 }
+            }
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val pipEnabled = viewModel.sharedPref.getBoolean(PREF_PIP_MODE, false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && supportsPiPMode() && pipEnabled) {
+            // Android 12+ handles this seamlessly via setAutoEnterEnabled(true) inside setupSmoothPipAnimation().
+            // For Android 8.0 to 11, we explicitly enter PiP mode here when user presses Home or Swipes up.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                val sourceRectHint = Rect()
+                mContentView?.getGlobalVisibleRect(sourceRectHint)
+                enterPictureInPictureMode(
+                    PictureInPictureParams.Builder()
+                        .setAspectRatio(Rational(1200, 720))
+                        .setSourceRectHint(sourceRectHint)
+                        .build()
+                )
             }
         }
     }
@@ -451,9 +496,20 @@ class BrowserActivity : ComponentActivity() {
         updateMultiwindowMargin()
     }
 
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        this.isInPictureInPictureModeState.value = isInPictureInPictureMode
+        if (isInPictureInPictureMode) {
+            // Hide the toolbar and overlay layers immediately when inside PiP
+            toolbarVisible.value = false
+        } else {
+            hideSystemBars()
+        }
+    }
+
     override fun onPause() {
         super.onPause()
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInPictureInPictureMode) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInPictureInPictureModeState.value) {
             viewModel.k3dPatcher.pause()
         }
     }
@@ -633,7 +689,7 @@ class BrowserActivity : ComponentActivity() {
         mContentView?.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
     }
 
-    private fun supportsPiPMode(): Boolean {
+    fun supportsPiPMode(): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
     }
 
@@ -886,6 +942,55 @@ fun BrowserScreenContent(
                     .padding(top = multiwinMarginDp.value.dp, bottom = multiwinMarginDp.value.dp)
                     .background(Color.Black)
                     .clickable(enabled = false) { } // Prevent clicks on WebView from toggling panel
+                    .pointerInput(Unit) {
+                        val pipEnabled = viewModel.sharedPref.getBoolean(PREF_PIP_MODE, false)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity.supportsPiPMode() && pipEnabled) {
+                            // By using PointerEventPass.Initial, we intercept the pinch gesture stream BEFORE the native WebView processes it!
+                            awaitPointerEventScope {
+                                while (true) {
+                                    var zoom = 1f
+                                    
+                                    // Track multi-touch pinch on the Initial pass
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        val changes = event.changes
+                                        if (changes.any { it.isConsumed }) break
+                                        
+                                        val pressedChanges = changes.filter { it.pressed }
+                                        if (pressedChanges.size < 2) {
+                                            if (pressedChanges.isEmpty()) break
+                                            zoom = 1f
+                                        } else {
+                                            // Calculate current and previous distances between first two pointers
+                                            val p1 = pressedChanges[0]
+                                            val p2 = pressedChanges[1]
+                                            val currDist = (p1.position - p2.position).getDistance()
+                                            val prevDist = (p1.previousPosition - p2.previousPosition).getDistance()
+                                            
+                                            if (prevDist > 0) {
+                                                val scaleDelta = currDist / prevDist
+                                                zoom *= scaleDelta
+                                                
+                                                // Trigger PiP when the zoom-out scale shrinks intentionally
+                                                if (zoom < 0.75f) {
+                                                    changes.forEach { it.consume() }
+                                                    val sourceRectHint = Rect()
+                                                    activity.mContentView?.getGlobalVisibleRect(sourceRectHint)
+                                                    activity.enterPictureInPictureMode(
+                                                        PictureInPictureParams.Builder()
+                                                            .setAspectRatio(Rational(1200, 720))
+                                                            .setSourceRectHint(sourceRectHint)
+                                                            .build()
+                                                    )
+                                                    break
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
             )
 
             if (errorText.value.isNotEmpty()) {
@@ -905,20 +1010,22 @@ fun BrowserScreenContent(
             }
         }
 
-        BrowserOverlayLayer(
-            showSubtitle = isCaption,
-            subtitleText = currentSubtitle,
-            subtitleVisible = subtitleVisible.value,
-            subtitleFontSize = subtitleFontSize.value,
-            isCapture = isCapture,
-            closeButtonVisible = closeButtonVisible.value,
-            onSubtitleTap = { subtitleVisible.value = false },
-            onCaptureClick = {
-                manager?.captureGameScreen(activity.findViewById(android.R.id.content)) // Or use view reference
-                showFlash.value = true
-            },
-            onCloseClick = { activity.finish() }
-        )
+        if (!activity.isInPictureInPictureModeState.value) {
+            BrowserOverlayLayer(
+                showSubtitle = isCaption,
+                subtitleText = currentSubtitle,
+                subtitleVisible = subtitleVisible.value,
+                subtitleFontSize = subtitleFontSize.value,
+                isCapture = isCapture,
+                closeButtonVisible = closeButtonVisible.value,
+                onSubtitleTap = { subtitleVisible.value = false },
+                onCaptureClick = {
+                    manager?.captureGameScreen(activity.findViewById(android.R.id.content)) // Or use view reference
+                    showFlash.value = true
+                },
+                onCloseClick = { activity.finish() }
+            )
+        }
     }
 }
 

@@ -41,7 +41,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private const val RevealStripLayoutId = "reveal_strip"
+
+private const val RevealStripTopLayoutId = "reveal_strip_top"
+private const val RevealStripBottomLayoutId = "reveal_strip_bottom"
 private const val BarLayoutId = "bar"
 
 /**
@@ -57,8 +59,9 @@ private const val BarLayoutId = "bar"
  *    back to the docked position.
  *  - The bar height wraps its content, up to [barHeightFraction] of the parent
  *    height. If the content exceeds that, the bar becomes scrollable.
- *  - Only the bar (and the reveal strip while hidden) consume touch input, so
+ *  - Only the bar (and the reveal strips while hidden) consume touch input, so
  *    the rest of the parent keeps receiving interaction while the bar is shown.
+ *  - The reveal strips physically avoid/dodge the WebView area to completely avoid blocking clicks/touches.
  */
 @Composable
 fun VerticalFloatingToolbar(
@@ -122,34 +125,37 @@ fun VerticalFloatingToolbar(
 
     // A custom layout is used here instead of BoxWithConstraints so that the
     // parent's max height can be read without incurring a subcomposition pass.
-    // Children are aligned to the vertical center and horizontal start, and the
-    // bar is capped to a fraction of the parent height (wrapping shorter content).
     Layout(
         modifier = modifier.fillMaxSize(),
         content = {
-            // Thin strip along the left edge used to swipe the bar open while hidden.
+            // Thin strips along the left edge used to swipe the bar open while hidden.
+            // Sized and positioned dynamically to completely avoid/dodge the centered WebView area.
             if (!visible) {
-                Box(
-                    modifier = Modifier
-                        .layoutId(RevealStripLayoutId)
-                        .width(revealWidth)
-                        .fillMaxHeight()
-                        .pointerInput(Unit) {
-                            detectHorizontalDragGestures(
-                                onDragStart = { coroutineScope.launch { offsetX.stop() } },
-                                onHorizontalDrag = { change, dragAmount ->
-                                    change.consume()
-                                    coroutineScope.launch {
-                                        offsetX.snapTo(
-                                            (offsetX.value + dragAmount).coerceIn(hiddenX, dockedX)
-                                        )
-                                    }
-                                },
-                                onDragEnd = { settle() },
-                                onDragCancel = { settle() }
-                            )
-                        }
-                )
+                val createStrip = @Composable { id: String ->
+                    Box(
+                        modifier = Modifier
+                            .layoutId(id)
+                            .width(revealWidth)
+                            .fillMaxHeight()
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures(
+                                    onDragStart = { coroutineScope.launch { offsetX.stop() } },
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        coroutineScope.launch {
+                                            offsetX.snapTo(
+                                                (offsetX.value + dragAmount).coerceIn(hiddenX, dockedX)
+                                            )
+                                        }
+                                    },
+                                    onDragEnd = { settle() },
+                                    onDragCancel = { settle() }
+                                )
+                            }
+                    )
+                }
+                createStrip(RevealStripTopLayoutId)
+                createStrip(RevealStripBottomLayoutId)
             }
 
             Surface(
@@ -195,30 +201,53 @@ fun VerticalFloatingToolbar(
             }
         }
     ) { measurables, constraints ->
-        // Cap the bar height so it wraps a short content exactly, but scrolls
-        // when the content is taller than this fraction of the parent.
         val maxBarHeight = if (constraints.hasBoundedHeight) {
             (constraints.maxHeight * barHeightFraction).roundToInt()
         } else {
             Constraints.Infinity
         }
 
-        // The parent is measured with fillMaxSize, so its incoming constraints
-        // impose minWidth = maxWidth = the parent width. Children set their own
-        // width (the bar via `width(barWidth)`, the strip via `width(revealWidth)`),
-        // but `Modifier.width` is incoming-enforcing, so a non-zero incoming
-        // minWidth would coerce them to the full parent width. Loosen the
-        // minimums before measuring the children to let them size themselves.
+        // Calculate WebView geometry bounds (15:9 aspect ratio centered).
+        val containerWidth = constraints.maxWidth.toFloat()
+        val containerHeight = constraints.maxHeight.toFloat()
+        val ratio = 1200f / 720f
+
+        val webViewWidth: Float
+        val webViewHeight: Float
+        if (containerWidth / containerHeight > ratio) {
+            // Screen is wider than 15:9 (Landscape) -> WebView takes full height, padded on left/right edges
+            webViewHeight = containerHeight
+            webViewWidth = containerHeight * ratio
+        } else {
+            // Screen is narrower than 15:9 (Portrait) -> WebView takes full width, padded on top/bottom edges
+            webViewWidth = containerWidth
+            webViewHeight = containerWidth / ratio
+        }
+
+        val webViewLeft = (containerWidth - webViewWidth) / 2f
+        val webViewTop = (containerHeight - webViewHeight) / 2f
+        val webViewBottom = webViewTop + webViewHeight
+
+        val revealWidthPx = with(density) { revealWidth.toPx() }
+        val overlapsHorizontally = webViewLeft < revealWidthPx
+
         val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
 
         val placeables = measurables.map { measurable ->
             when (measurable.layoutId) {
-                // The bar may not exceed the height cap; it decides its own size
-                // below that via its scrollable content.
                 BarLayoutId -> measurable.measure(
                     looseConstraints.copy(maxHeight = maxBarHeight)
                 )
-                // The reveal strip fills the parent height.
+                RevealStripTopLayoutId -> {
+                    // In portrait mode, only cover the top black bar area. In landscape, cover full screen height since it's safely inside the left black bar margin.
+                    val heightCap = if (overlapsHorizontally) webViewTop.roundToInt().coerceAtLeast(0) else constraints.maxHeight
+                    measurable.measure(looseConstraints.copy(maxHeight = heightCap))
+                }
+                RevealStripBottomLayoutId -> {
+                    // In portrait mode, only cover the bottom black bar area. In landscape, 0 height.
+                    val heightCap = if (overlapsHorizontally) (constraints.maxHeight - webViewBottom.roundToInt()).coerceAtLeast(0) else 0
+                    measurable.measure(looseConstraints.copy(maxHeight = heightCap))
+                }
                 else -> measurable.measure(looseConstraints)
             }
         }
@@ -226,8 +255,22 @@ fun VerticalFloatingToolbar(
         val width = constraints.maxWidth
         val height = constraints.maxHeight
         layout(width, height) {
-            placeables.forEach { placeable ->
-                placeable.place(x = 0, y = (height - placeable.height) / 2)
+            measurables.zip(placeables).forEach { (measurable, placeable) ->
+                when (measurable.layoutId) {
+                    BarLayoutId -> {
+                        placeable.place(x = 0, y = (height - placeable.height) / 2)
+                    }
+                    RevealStripTopLayoutId -> {
+                        placeable.place(x = 0, y = 0)
+                    }
+                    RevealStripBottomLayoutId -> {
+                        if (overlapsHorizontally) {
+                            placeable.place(x = 0, y = webViewBottom.roundToInt())
+                        } else {
+                            placeable.place(x = 0, y = 0)
+                        }
+                    }
+                }
             }
         }
     }
