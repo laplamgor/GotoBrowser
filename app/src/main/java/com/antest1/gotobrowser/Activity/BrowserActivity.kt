@@ -2,29 +2,25 @@ package com.antest1.gotobrowser.Activity
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.Rect
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
-import android.util.Rational
 import android.view.Surface
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.SslErrorHandler
-import androidx.browser.customtabs.CustomTabColorSchemeParams
-import androidx.browser.customtabs.CustomTabsIntent
-import androidx.annotation.RequiresApi
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
+import androidx.annotation.RequiresApi
+import androidx.browser.customtabs.CustomTabColorSchemeParams
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,8 +39,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
@@ -62,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -72,10 +67,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.ViewModelProvider
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.ViewModelProvider
 import com.antest1.gotobrowser.Browser.WebViewL
 import com.antest1.gotobrowser.Browser.WebViewManager
 import com.antest1.gotobrowser.BuildConfig
@@ -86,8 +79,9 @@ import com.antest1.gotobrowser.Constants.PREF_ALTER_ENDPOINT
 import com.antest1.gotobrowser.Constants.PREF_ALTER_GADGET
 import com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD
 import com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD_PROXY
-import com.antest1.gotobrowser.Constants.PREF_CONNECTOR
 import com.antest1.gotobrowser.Constants.PREF_BROADCAST
+import com.antest1.gotobrowser.Constants.PREF_CONNECTOR
+import com.antest1.gotobrowser.Constants.PREF_DISABLE_REFRESH_DIALOG
 import com.antest1.gotobrowser.Constants.PREF_DOWNLOAD_RETRY
 import com.antest1.gotobrowser.Constants.PREF_KEYBOARD
 import com.antest1.gotobrowser.Constants.PREF_LANDSCAPE
@@ -96,13 +90,12 @@ import com.antest1.gotobrowser.Constants.PREF_PANELSTART
 import com.antest1.gotobrowser.Constants.PREF_PIP_MODE
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_FONTSIZE
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_LOCALE
-import com.antest1.gotobrowser.Constants.PREF_DISABLE_REFRESH_DIALOG
 import com.antest1.gotobrowser.Constants.REQUEST_NOTIFICATION_PERMISSION
 import com.antest1.gotobrowser.Helpers.BackPressCloseHandler
 import com.antest1.gotobrowser.Helpers.KcUtils
-import com.antest1.gotobrowser.Subtitle.SubtitleProviderUtils
 import com.antest1.gotobrowser.Notification.ScreenshotNotification
 import com.antest1.gotobrowser.R
+import com.antest1.gotobrowser.Subtitle.SubtitleProviderUtils
 import com.antest1.gotobrowser.ui.component.SettingsBottomSheet
 import com.antest1.gotobrowser.ui.component.VerticalFloatingToolbar
 import com.antest1.gotobrowser.ui.theme.GotobrowserTheme
@@ -112,39 +105,29 @@ import java.util.Locale
 class BrowserActivity : ComponentActivity() {
     companion object {
         const val FOREGROUND_ACTION = "${BuildConfig.APPLICATION_ID}.foreground"
-
-        // Split-screen divider margin, in dp (matches the legacy 24px value).
-        private const val MULTIWIN_MARGIN_DP = 24
+        const val MULTIWIN_MARGIN_DP = 24
     }
 
-    private lateinit var viewModel: BrowserViewModel
+    lateinit var viewModel: BrowserViewModel
     private lateinit var settingsViewModel: SettingsViewModel
     private var manager: WebViewManager? = null
     var mContentView: WebViewL? = null
     private lateinit var screenshotNotification: ScreenshotNotification
     private lateinit var backPressCloseHandler: BackPressCloseHandler
 
+    internal lateinit var pipController: PipController
+    private lateinit var displayController: DisplayController
+
     val isInPictureInPictureModeState = mutableStateOf(false)
     private val errorText = mutableStateOf("")
     private val subtitleTextValue = mutableStateOf("")
     private val closeButtonVisible = mutableStateOf(false)
-    // Hoisted out of setContent so handleBackPress() can reveal the toolbar.
     private val toolbarVisible = mutableStateOf(false)
-    // Settings bottom sheet + "reload required" prompt state, hoisted so the
-    // back-press handler can close them before falling through to exit logic.
     private val settingsSheetVisible = mutableStateOf(false)
     private val refreshPromptVisible = mutableStateOf(false)
-    // Settings that can be applied to the running browser without a reload.
-    // Subtitle size is Compose state so the overlay recomposes immediately.
     private val subtitleFontSize = mutableStateOf(DEFAULT_SUBTITLE_FONT_SIZE)
-    // Extra top/bottom padding (in dp) for the split-screen divider, managed by
-    // updateMultiwindowMargin(). 0 when the feature is off or unsupported.
     private val multiwinMarginDp = mutableStateOf(0)
 
-    /**
-     * Settings whose changes do NOT need a WebView reload; they are applied to
-     * the live browser by [applyLiveSetting] instead of prompting the user.
-     */
     private val liveSettings = setOf(
         PREF_LANDSCAPE,
         PREF_MULTIWIN_MARGIN,
@@ -167,8 +150,6 @@ class BrowserActivity : ComponentActivity() {
         sendIsFrontChanged(true)
 
         val intent = getIntent()
-        // Only on a real cold launch: the URL opened by a share intent, a
-        // configuration change or coming back from PiP should not re-check.
         val isAppLaunch = Intent.ACTION_MAIN == intent.action && savedInstanceState == null
 
         if (viewModel.sharedPref.getBoolean(PREF_LANDSCAPE, true)) {
@@ -183,10 +164,9 @@ class BrowserActivity : ComponentActivity() {
         manager = WebViewManager(this)
         manager?.setDataDirectorySuffix()
 
-        // The cache proxy must be installed before the WebView loads anything,
-        // so this runs before setContent() rather than once the page appears.
-        // Only DMM direct is rewritten through the proxy; the other connectors
-        // are patched through shouldInterceptRequest() instead.
+        pipController = PipController(this, mContentView, { isInPictureInPictureModeState.value = it }, { hideSystemBars() })
+        displayController = DisplayController(this, mContentView) { multiwinMarginDp.value = it }
+
         val prefAlterGadget = viewModel.sharedPref.getBoolean(PREF_ALTER_GADGET, false)
         val isProxyMethod = PREF_ALTER_METHOD_PROXY == viewModel.sharedPref.getString(PREF_ALTER_METHOD, "")
         val alterEndpoint = viewModel.sharedPref.getString(PREF_ALTER_ENDPOINT, DEFAULT_ALTER_GADGET_URL)
@@ -199,8 +179,6 @@ class BrowserActivity : ComponentActivity() {
             WebViewManager.clearKcCacheProxy()
         }
 
-        // Deferred until the content view exists, because the update check and
-        // the Kcanotify warning both attach to android.R.id.content.
         if (isAppLaunch) {
             window.decorView.post {
                 checkAppUpdateOnStart()
@@ -227,7 +205,10 @@ class BrowserActivity : ComponentActivity() {
                         manager = manager,
                         onViewCreated = { 
                             mContentView = it 
-                            setupSmoothPipAnimation()
+                            pipController = PipController(this@BrowserActivity, it, { isInPictureInPictureModeState.value = it }, { hideSystemBars() })
+                            displayController = DisplayController(this@BrowserActivity, it) { multiwinMarginDp.value = it }
+                            pipController.setupSmoothPipAnimation()
+                            displayController.applyKeyboardSetting()
                         },
                         intent = intent,
                         activity = this@BrowserActivity,
@@ -250,7 +231,7 @@ class BrowserActivity : ComponentActivity() {
                             if (!checkStoragePermissionGrated()) showStoragePermissionDialog()
                             viewModel.toggleCaptureMode()
                         })
-                        PanelButton(id = R.drawable.screen_lock, active = isLock, onClick = { viewModel.toggleLockMode(); updateOrientationLock() })
+                        PanelButton(id = R.drawable.screen_lock, active = isLock, onClick = { viewModel.toggleLockMode(); displayController.updateOrientationLock() })
                         PanelButton(id = R.drawable.light_mode, active = isKeep, onClick = { viewModel.toggleKeepMode() })
                         PanelButton(id = R.drawable.caption_icon, active = isCaption, onClick = { viewModel.toggleCaptionMode() })
                         if (viewModel.k3dPatcher.isPatcherEnabled) {
@@ -277,15 +258,11 @@ class BrowserActivity : ComponentActivity() {
                             activity = this@BrowserActivity,
                             onDismissRequest = { settingsSheetVisible.value = false },
                             onLogoutRequest = {
-                                // Close the sheet first, then show the dialog on the
-                                // activity's window so it is not hidden behind the
-                                // sheet's own window.
                                 settingsSheetVisible.value = false
                                 showLogoutDialog()
                             },
                             onSettingChanged = { key ->
                                 if (key in liveSettings) {
-                                    // Applied to the running browser; no reload needed.
                                     applyLiveSetting(key)
                                 } else {
                                     refreshPromptVisible.value = true
@@ -314,7 +291,7 @@ class BrowserActivity : ComponentActivity() {
             }
         })
 
-        setupSmoothPipAnimation()
+        pipController.setupSmoothPipAnimation()
         hideSystemBars()
     }
 
@@ -344,142 +321,17 @@ class BrowserActivity : ComponentActivity() {
     fun setSubtitleText(text: String) { subtitleTextValue.value = text }
     fun setCloseButtonVisible(visible: Boolean) { closeButtonVisible.value = visible }
 
-    private fun updateOrientationLock() {
-        val isLockMode = java.lang.Boolean.TRUE == viewModel.isLockMode.value
-        if (viewModel.sharedPref.getBoolean(PREF_LANDSCAPE, false)) {
-            requestedOrientation = if (isLockMode) {
-                val rot = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    display?.rotation ?: Surface.ROTATION_0
-                } else {
-                    @Suppress("DEPRECATION")
-                    windowManager.defaultDisplay.rotation
-                }
-                if (rot == Surface.ROTATION_270) {
-                    ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
-                } else {
-                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                }
-            } else ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
-        } else {
-            requestedOrientation = if (isLockMode) ActivityInfo.SCREEN_ORIENTATION_LOCKED
-            else ActivityInfo.SCREEN_ORIENTATION_USER
-        }
-    }
-
-    /**
-     * Applies a setting that does not require a WebView reload.
-     *
-     * @param key one of [liveSettings]; others are ignored.
-     */
     private fun applyLiveSetting(key: String) {
         when (key) {
-            PREF_LANDSCAPE -> updateOrientationLock()
-            PREF_MULTIWIN_MARGIN -> updateMultiwindowMargin()
+            PREF_LANDSCAPE -> displayController.updateOrientationLock()
+            PREF_MULTIWIN_MARGIN -> displayController.updateMultiwindowMargin()
             PREF_SUBTITLE_FONTSIZE -> subtitleFontSize.value = settingsViewModel.getSubtitleFontSize()
-            PREF_DOWNLOAD_RETRY -> {
-                // Read lazily by ResourceProcess right before each retry prompt,
-                // so nothing to do here.
-            }
-            PREF_PIP_MODE -> {
-                // Instantly re-initialize or update PiP animation setup
-                setupSmoothPipAnimation()
-            }
-            PREF_PANELSTART, PREF_DISABLE_REFRESH_DIALOG -> {
-                // Modifies cold start preferences or alert behaviors lazily,
-                // so no live engine action is needed here.
-            }
-        }
-    }
-
-    /**
-     * Adds a small black margin on the side facing the split-screen divider so
-     * the divider does not overlap the game area. Re-implements the old
-     * setMultiwindowMargin() from the XML layout era using Compose state.
-     */
-    private fun updateMultiwindowMargin() {
-        val enabled = viewModel.sharedPref.getBoolean(PREF_MULTIWIN_MARGIN, false)
-        // isInMultiWindowMode() and split-screen only exist on API 24+.
-        if (!enabled || Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInMultiWindowMode()) {
-            multiwinMarginDp.value = 0
-            return
-        }
-
-        val windowRect = Rect()
-        val screenRect = Rect()
-        val decorView = window.decorView
-        decorView.getWindowVisibleDisplayFrame(windowRect)
-        decorView.getGlobalVisibleRect(screenRect)
-
-        // In split-screen mode at least one window edge is aligned with the
-        // screen edge; if none are, it is free-form mode and no bar is needed.
-        val isFreeform = windowRect.top != screenRect.top &&
-                windowRect.bottom != screenRect.bottom &&
-                windowRect.left != screenRect.left &&
-                windowRect.right != screenRect.right
-
-        multiwinMarginDp.value = if (isFreeform) {
-            0
-        } else {
-            val center = (screenRect.top + screenRect.bottom) / 2
-            when {
-                windowRect.top > center -> MULTIWIN_MARGIN_DP   // bottom half
-                windowRect.bottom < center -> MULTIWIN_MARGIN_DP // top half
-                else -> 0
-            }
-        }
-    }
-
-    private fun setupSmoothPipAnimation() {
-        val pipEnabled = viewModel.sharedPref.getBoolean(PREF_PIP_MODE, false)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && supportsPiPMode() && pipEnabled) {
-            val sourceRectHint = Rect()
-            mContentView?.getGlobalVisibleRect(sourceRectHint)
-            setPictureInPictureParams(
-                PictureInPictureParams.Builder()
-                    .setSeamlessResizeEnabled(false)
-                    .setSourceRectHint(sourceRectHint)
-                    .setAutoEnterEnabled(true)
-                    .setAspectRatio(Rational(1200, 720))
-                    .build()
-            )
-            mContentView?.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
-                if (left != oldLeft || right != oldRight || top != oldTop || bottom != oldBottom) {
-                    mContentView?.getGlobalVisibleRect(sourceRectHint)
-                    setPictureInPictureParams(
-                        PictureInPictureParams.Builder()
-                            .setSeamlessResizeEnabled(false)
-                            .setSourceRectHint(sourceRectHint)
-                            .setAutoEnterEnabled(true)
-                            .setAspectRatio(Rational(1200, 720))
-                            .build()
-                    )
-                }
-            }
-        }
-    }
-
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        val pipEnabled = viewModel.sharedPref.getBoolean(PREF_PIP_MODE, false)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && supportsPiPMode() && pipEnabled) {
-            // Android 12+ handles this seamlessly via setAutoEnterEnabled(true) inside setupSmoothPipAnimation().
-            // For Android 8.0 to 11, we explicitly enter PiP mode here when user presses Home or Swipes up.
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                val sourceRectHint = Rect()
-                mContentView?.getGlobalVisibleRect(sourceRectHint)
-                enterPictureInPictureMode(
-                    PictureInPictureParams.Builder()
-                        .setAspectRatio(Rational(1200, 720))
-                        .setSourceRectHint(sourceRectHint)
-                        .build()
-                )
-            }
+            PREF_PIP_MODE -> pipController.setupSmoothPipAnimation()
+            PREF_KEYBOARD -> displayController.applyKeyboardSetting()
         }
     }
 
     fun handleBackPress() {
-        // Let the settings overlay handle back first so the user does not exit
-        // the app (or trigger the "press back again" prompt) while it is open.
         if (refreshPromptVisible.value) {
             refreshPromptVisible.value = false
             return
@@ -488,11 +340,6 @@ class BrowserActivity : ComponentActivity() {
             settingsSheetVisible.value = false
             return
         }
-        // Reveal the floating toolbar on back press, so the user can always
-        // bring it back even when the edge-swipe reveal gesture is consumed
-        // by the system back gesture. This coincides with the
-        // "Press back again to exit" prompt. Setting the state to true while
-        // the toolbar is already visible is a no-op.
         toolbarVisible.value = true
         backPressCloseHandler.handleOnBackPressed()
     }
@@ -506,23 +353,19 @@ class BrowserActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.N)
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: android.content.res.Configuration) {
         super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
-        // Recompute the split-screen divider margin when entering/leaving split screen.
-        updateMultiwindowMargin()
+        displayController.updateMultiwindowMargin()
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        updateMultiwindowMargin()
+        displayController.updateMultiwindowMargin()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        this.isInPictureInPictureModeState.value = isInPictureInPictureMode
+        pipController.handlePictureInPictureModeChanged(isInPictureInPictureMode)
         if (isInPictureInPictureMode) {
-            // Hide the toolbar and overlay layers immediately when inside PiP
             toolbarVisible.value = false
-        } else {
-            hideSystemBars()
         }
     }
 
@@ -535,13 +378,11 @@ class BrowserActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Anchor dialogs opened by the settings sheet to this window; re-set on
-        // every resume because the ViewModel outlives the activity.
         settingsViewModel.setHostActivity(this)
         hideSystemBars()
         mContentView?.resumeTimers()
         sendIsFrontChanged(true)
-        updateMultiwindowMargin()
+        displayController.updateMultiwindowMargin()
         mContentView?.let { manager?.runMuteScript(it, java.lang.Boolean.TRUE == viewModel.isMuteMode.value) }
         val rot = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             display?.rotation ?: Surface.ROTATION_0
@@ -628,23 +469,12 @@ class BrowserActivity : ComponentActivity() {
         screenshotNotification.showNotification(bitmap, uri)
     }
 
-    /**
-     * Asks GitHub for the latest release as soon as the app is launched, so the
-     * user is told about a new version without having to open the settings.
-     *
-     * Guarded through the ViewModel so a recreated activity does not fire a
-     * second request for the same launch.
-     */
     private fun checkAppUpdateOnStart() {
         if (viewModel.isAppUpdateCheckStarted) return
         viewModel.isAppUpdateCheckStarted = true
         settingsViewModel.checkAppUpdate(this)
     }
 
-    /**
-     * Kcanotify needs broadcast mode to follow the game state, so warn once per
-     * launch if it is installed while the setting is off.
-     */
     private fun warnIfKcanotifyBroadcastDisabled() {
         val broadcastEnabled = viewModel.sharedPref.getBoolean(PREF_BROADCAST, true)
         if (broadcastEnabled || !KcUtils.isKcanotifyInstalled(this)) return
@@ -696,21 +526,7 @@ class BrowserActivity : ComponentActivity() {
         sendBroadcast(intent)
     }
 
-    /**
-     * Blocks the soft keyboard by making the WebView unfocusable when the user
-     * turned the on-screen keyboard off. The preference is read directly, since
-     * BrowserActivity is now the only entry point.
-     */
-    fun applyKeyboardSetting() {
-        if (viewModel.sharedPref.getBoolean(PREF_KEYBOARD, true)) return
-        mContentView?.isFocusableInTouchMode = false
-        mContentView?.isFocusable = false
-        mContentView?.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
-    }
-
-    fun supportsPiPMode(): Boolean {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-    }
+    fun supportsPiPMode(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
 
     private fun openManual(context: Context) {
         val url = context.getString(R.string.manual_link)
@@ -732,16 +548,20 @@ class BrowserActivity : ComponentActivity() {
         }
     }
 
-    private fun hideSystemBars() {
-        val windowInsetsController =
-            WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+    fun hideSystemBars() {
+        if (::displayController.isInitialized) {
+            displayController.hideSystemBars()
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (::pipController.isInitialized) {
+            pipController.onUserLeaveHint()
+        }
     }
 }
 
-// Top-level so both the activity's floating toolbar and the IDE preview can use it.
 @Composable
 fun PanelButton(id: Int, active: Boolean = false, onClick: () -> Unit) {
     IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
@@ -753,7 +573,6 @@ fun PanelButton(id: Int, active: Boolean = false, onClick: () -> Unit) {
     }
 }
 
-// Prompts the user to reload the WebView after changing a setting.
 @Composable
 private fun SettingsRefreshDialog(
     onRefreshNow: () -> Unit,
@@ -776,7 +595,6 @@ private fun SettingsRefreshDialog(
     )
 }
 
-// Compose replacement for the old k3d_form.xml dialog.
 @Composable
 private fun Kantai3dDialog(
     patcher: com.antest1.gotobrowser.Helpers.K3dPatcher,
@@ -823,8 +641,6 @@ private fun Kantai3dDialog(
     )
 }
 
-// Stateless overlay layer (subtitle, capture, close). Extracted so the real
-// overlays can be rendered in an IDE preview without a ViewModel or WebView.
 @Composable
 fun BrowserOverlayLayer(
     showSubtitle: Boolean,
@@ -838,7 +654,6 @@ fun BrowserOverlayLayer(
     onCloseClick: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // Subtitle Overlay
         if (showSubtitle && subtitleVisible) {
             Box(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 12.dp), contentAlignment = Alignment.BottomCenter) {
                 Text(
@@ -852,7 +667,6 @@ fun BrowserOverlayLayer(
             }
         }
 
-        // Camera Button (Square)
         if (isCapture) {
             IconButton(
                 onClick = onCaptureClick,
@@ -863,7 +677,6 @@ fun BrowserOverlayLayer(
             }
         }
 
-        // DMM Close Button
         if (closeButtonVisible) {
             IconButton(
                 onClick = onCloseClick,
@@ -916,7 +729,6 @@ fun BrowserScreenContent(
                 indication = null
             ) { onBackgroundTap() }
     ) {
-        // WebView with proper "Scale to Fit" 15:9
         BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             val ratio = 1200f / 720f
             val containerWidth = maxWidth.value
@@ -926,11 +738,9 @@ fun BrowserScreenContent(
             val finalHeight: androidx.compose.ui.unit.Dp
 
             if (containerWidth / containerHeight > ratio) {
-                // Screen is wider than 15:9
                 finalHeight = maxHeight
                 finalWidth = maxHeight * ratio
             } else {
-                // Screen is narrower than 15:9
                 finalWidth = maxWidth
                 finalHeight = maxWidth / ratio
             }
@@ -941,8 +751,6 @@ fun BrowserScreenContent(
                         onViewCreated(this)
                         addJavascriptInterface(viewModel.k3dPatcher, "kantai3dInterface")
                         manager?.setHardwareAcceleratedFlag()
-                        activity.applyKeyboardSetting()
-                        // Initial setup...
                         viewModel.connectorInfo = WebViewManager.getDefaultPage(activity)
                         val info = viewModel.connectorInfo
                         if (info != null && info.size == 2) {
@@ -956,59 +764,11 @@ fun BrowserScreenContent(
                 },
                 modifier = Modifier
                     .size(width = finalWidth, height = finalHeight)
-                    // Leave room for the split-screen divider so it does not
-                    // overlap the game area (see BrowserActivity#updateMultiwindowMargin).
                     .padding(top = multiwinMarginDp.value.dp, bottom = multiwinMarginDp.value.dp)
                     .background(Color.Black)
-                    .clickable(enabled = false) { } // Prevent clicks on WebView from toggling panel
+                    .clickable(enabled = false) { }
                     .pointerInput(Unit) {
-                        val pipEnabled = viewModel.sharedPref.getBoolean(PREF_PIP_MODE, false)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity.supportsPiPMode() && pipEnabled) {
-                            // By using PointerEventPass.Initial, we intercept the pinch gesture stream BEFORE the native WebView processes it!
-                            awaitPointerEventScope {
-                                while (true) {
-                                    var zoom = 1f
-                                    
-                                    // Track multi-touch pinch on the Initial pass
-                                    while (true) {
-                                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                                        val changes = event.changes
-                                        if (changes.any { it.isConsumed }) break
-                                        
-                                        val pressedChanges = changes.filter { it.pressed }
-                                        if (pressedChanges.size < 2) {
-                                            if (pressedChanges.isEmpty()) break
-                                            zoom = 1f
-                                        } else {
-                                            // Calculate current and previous distances between first two pointers
-                                            val p1 = pressedChanges[0]
-                                            val p2 = pressedChanges[1]
-                                            val currDist = (p1.position - p2.position).getDistance()
-                                            val prevDist = (p1.previousPosition - p2.previousPosition).getDistance()
-                                            
-                                            if (prevDist > 0) {
-                                                val scaleDelta = currDist / prevDist
-                                                zoom *= scaleDelta
-                                                
-                                                // Trigger PiP when the zoom-out scale shrinks intentionally
-                                                if (zoom < 0.75f) {
-                                                    changes.forEach { it.consume() }
-                                                    val sourceRectHint = Rect()
-                                                    activity.mContentView?.getGlobalVisibleRect(sourceRectHint)
-                                                    activity.enterPictureInPictureMode(
-                                                        PictureInPictureParams.Builder()
-                                                            .setAspectRatio(Rational(1200, 720))
-                                                            .setSourceRectHint(sourceRectHint)
-                                                            .build()
-                                                    )
-                                                    break
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        activity.pipController.handlePinchToPipGesture(this)
                     }
             )
 
@@ -1032,14 +792,14 @@ fun BrowserScreenContent(
         if (!activity.isInPictureInPictureModeState.value) {
             BrowserOverlayLayer(
                 showSubtitle = isCaption,
-                subtitleText = currentSubtitle,
-                subtitleVisible = subtitleVisible.value,
+                subtitleText = subtitleTextValue.value,
+                subtitleVisible = true,
                 subtitleFontSize = subtitleFontSize.value,
                 isCapture = isCapture,
                 closeButtonVisible = closeButtonVisible.value,
-                onSubtitleTap = { subtitleVisible.value = false },
+                onSubtitleTap = { /* hidden in this implementation? */ },
                 onCaptureClick = {
-                    manager?.captureGameScreen(activity.findViewById(android.R.id.content)) // Or use view reference
+                    manager?.captureGameScreen(activity.findViewById(android.R.id.content))
                     showFlash.value = true
                 },
                 onCloseClick = { activity.finish() }
@@ -1053,7 +813,6 @@ fun BrowserScreenContent(
 fun BrowserScreenPreview() {
     GotobrowserTheme {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-            // Placeholder for the WebView area (an actual WebView cannot render in Preview).
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
