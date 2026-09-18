@@ -46,6 +46,7 @@
     <string name="setting_latest_download_subtitle" formatted="false">已推出新版本 (%s)</string>
     <string name="browser_fontprefetch">预先载入字体</string>
     <string name="browser_enablepipmode">启用画中画模式</string>
+    <string name="browser_enablepipmode_summary">开启后，当你返回主屏幕、向上滑动或在网页区域使用双指缩小手势时，应用将以浮动小窗形式继续运行。</string>
     <string name="browser_disable_refresh_dialog">禁用重新加载确认</string>
     <string name="logout_msg">您确定要登出吗？</string>
     <string name="noti_screenshot_name">GotoBrowser截图</string>
@@ -82,6 +83,9 @@
     <string name="settings_legacy_renderer_summary">强制PixiJS引擎使用Canvas渲染器而非WebGL渲染器。可解决大部份奇怪图形错误但会降低效能。</string>
 
     <string name="settings_mod_label">第三方MOD（风险自负）</string>
+    <string name="settings_mod_group_general">常規</string>
+    <string name="settings_mod_group_kantai3d">Kantai3D 視覺模組</string>
+    <string name="settings_mod_group_kccp">語言翻譯模組</string>
     <string name="settings_mod_kantai3d_enable">Kantai3D v4.0</string>
     <string name="settings_mod_kantai3d_summary">为部份秘书舰添加仿立体以及乳摇视觉效果。作者：@laplamgor</string>
     <string name="settings_mod_kantai3d_about">关于Kantai3D</string>
