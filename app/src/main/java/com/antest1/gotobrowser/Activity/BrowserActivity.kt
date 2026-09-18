@@ -95,10 +95,12 @@ import com.antest1.gotobrowser.Constants.PREF_MULTIWIN_MARGIN
 import com.antest1.gotobrowser.Constants.PREF_PANELSTART
 import com.antest1.gotobrowser.Constants.PREF_PIP_MODE
 import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_FONTSIZE
+import com.antest1.gotobrowser.Constants.PREF_SUBTITLE_LOCALE
 import com.antest1.gotobrowser.Constants.PREF_DISABLE_REFRESH_DIALOG
 import com.antest1.gotobrowser.Constants.REQUEST_NOTIFICATION_PERMISSION
 import com.antest1.gotobrowser.Helpers.BackPressCloseHandler
 import com.antest1.gotobrowser.Helpers.KcUtils
+import com.antest1.gotobrowser.Subtitle.SubtitleProviderUtils
 import com.antest1.gotobrowser.Notification.ScreenshotNotification
 import com.antest1.gotobrowser.R
 import com.antest1.gotobrowser.ui.component.SettingsBottomSheet
@@ -176,6 +178,8 @@ class BrowserActivity : ComponentActivity() {
         toolbarVisible.value = viewModel.sharedPref.getBoolean(PREF_PANELSTART, true)
         subtitleFontSize.value = settingsViewModel.getSubtitleFontSize()
 
+        loadSubtitleData()
+
         manager = WebViewManager(this)
         manager?.setDataDirectorySuffix()
 
@@ -241,7 +245,7 @@ class BrowserActivity : ComponentActivity() {
                         val isCaption by viewModel.isCaptionMode.observeAsState(false)
 
                         PanelButton(id = R.drawable.refresh_icon, onClick = { showRefreshDialog() })
-                        PanelButton(id = R.drawable.volume_off, active = isMute, onClick = { viewModel.toggleMuteMode() })
+                        PanelButton(id = R.drawable.volume_off, active = isMute, onClick = { toggleMuteMode() })
                         PanelButton(id = R.drawable.camera_icon, active = isCapture, onClick = {
                             if (!checkStoragePermissionGrated()) showStoragePermissionDialog()
                             viewModel.toggleCaptureMode()
@@ -317,6 +321,21 @@ class BrowserActivity : ComponentActivity() {
     fun isMuteMode(): Boolean = java.lang.Boolean.TRUE == viewModel.isMuteMode.value
     fun isCaptionAvailable(): Boolean = java.lang.Boolean.TRUE == viewModel.isCaptionMode.value
     fun isSubtitleAvailable(): Boolean = viewModel.isSubtitleLoaded
+
+    private fun toggleMuteMode() {
+        viewModel.toggleMuteMode()
+        mContentView?.let {
+            manager?.runMuteScript(it, java.lang.Boolean.TRUE == viewModel.isMuteMode.value)
+        }
+    }
+
+    private fun loadSubtitleData() {
+        val subtitleLocale = viewModel.sharedPref.getString(PREF_SUBTITLE_LOCALE, "en") ?: "en"
+        val loaded = SubtitleProviderUtils.getSubtitleProvider(subtitleLocale)
+            .loadQuoteData(applicationContext, subtitleLocale)
+        viewModel.setSubtitleLoaded(loaded)
+    }
+
     fun setStartedFlag() {
         viewModel.isStartedFlag = true
     }
