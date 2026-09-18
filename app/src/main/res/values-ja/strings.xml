@@ -47,6 +47,7 @@
     <string name="setting_latest_download_subtitle" formatted="false">アップデートがあります。(%s)</string>
     <string name="browser_fontprefetch">フォントをプリロード</string>
     <string name="browser_enablepipmode">PIPモードを有効にする</string>
+    <string name="browser_enablepipmode_summary">ホーム画面に戻る、上にスワイプする、またはブラウザ画面を2本の指でピンチイン（縮小）すると、小さなフローティング窓でアプリを再生し続けます。</string>
     <string name="browser_disable_refresh_dialog">再読み込み確認を無効にする</string>
     <string name="logout_msg">本当にログアウトしますか？</string>
     <string name="noti_screenshot_name">GotoBrowserスクリーンショット</string>
@@ -83,6 +84,9 @@
     <string name="settings_legacy_renderer_enable">レガシーレンダラを使用する</string>
 
     <string name="settings_mod_label">非公式のMOD（自己責任で使ってください）</string>
+    <string name="settings_mod_group_general">一般</string>
+    <string name="settings_mod_group_kantai3d">Kantai3D 視覚効果</string>
+    <string name="settings_mod_group_kccp">言語パッチ (KCCP)</string>
     <string name="settings_mod_kantai3d_enable">Kantai3D v4.0</string>
     <string name="settings_mod_kantai3d_summary">一部の秘書艦に3Dのような視覚効果とおける乳揺れを追加します。作者：@laplamgor</string>
     <string name="settings_mod_kantai3d_about">About Kantai3D</string>

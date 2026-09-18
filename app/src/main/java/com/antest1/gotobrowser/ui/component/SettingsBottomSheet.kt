@@ -611,9 +611,16 @@ private fun ModsSection(
 ) {
     val context = LocalContext.current
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
+
+    // --- Group 1: General Mods -----------------------------------------------
+    SectionHeader(R.string.settings_mod_group_general)
     SwitchRow(viewModel, PREF_MOD_FPS, R.string.settings_mod_fps_enable, R.string.settings_mod_fps_summary,
         onSettingChanged = onSettingChanged)
+    SwitchRow(viewModel, PREF_MOD_CRIT, R.string.settings_mod_crit_enable, R.string.settings_mod_crit_summary,
+        onSettingChanged = onSettingChanged)
 
+    // --- Group 2: Kantai3D Mod -----------------------------------------------
+    SectionHeader(R.string.settings_mod_group_kantai3d)
     val kantai3dEnabled = if (isPreview) false else viewModel!!.isKantai3dEnabled()
     SwitchRow(viewModel, PREF_MOD_KANTAI3D, R.string.settings_mod_kantai3d_enable,
         R.string.settings_mod_kantai3d_summary, enabled = kantai3dEnabled, onSettingChanged = onSettingChanged)
@@ -623,8 +630,8 @@ private fun ModsSection(
         onClick = { openUrl(context, GITHUB_KANTAI3D) }
     )
 
-    SwitchRow(viewModel, PREF_MOD_CRIT, R.string.settings_mod_crit_enable, R.string.settings_mod_crit_summary,
-        onSettingChanged = onSettingChanged)
+    // --- Group 3: English & Language Patches --------------------------------
+    SectionHeader(R.string.settings_mod_group_kccp)
     SwitchRow(viewModel, PREF_MOD_KCCP_LANG_PATCH, R.string.settings_mod_kccp, R.string.settings_mod_kccp_summary,
         onChanged = { if (!isPreview) viewModel!!.onKccpPatchChanged() }, onSettingChanged = onSettingChanged)
 
