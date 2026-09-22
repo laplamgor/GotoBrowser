@@ -124,11 +124,6 @@
     <string name="settings_mod_crit_enable">True Critical Hits</string>
     <string name="settings_mod_crit_summary">Removes some hard-coded obfuscation for hits. Only a critical hit will be displayed as such, etc. Author: @Oradimi</string>
     <string name="settings_use_external_dir">External Storage for Resource Caching</string>
-    <string name="menu_tooltip_kantai3d">Toggle 3D effects</string>
-    <string name="msg_kantai3d_init">No secretary detected</string>
-    <string name="msg_kantai3d_loaded">The depth map of the current secretary CG is loaded: %s</string>
-    <string name="msg_kantai3d_error">The depth map of the current secretary CG is unavailable: %s</string>
-    <string name="msg_kantai3d_redirect">To see the list of all 3D-supported CG, or contribute new depth maps, please visit: https://github.com/laplamgor/kantai3d</string>
 
     <string name="en_download_start">Download starting…</string>
     <string name="en_unzip_start">Unzipping… Please wait…</string>

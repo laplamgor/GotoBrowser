@@ -108,11 +108,6 @@
     <string name="settings_mod_crit_enable">真正的Critical hit</string>
     <string name="settings_mod_crit_summary">刪除遊戲命中的硬編碼混淆，使其在真正Critical hit才顯示。作者：@Oradimi</string>
     <string name="settings_use_external_dir">將快取存放至外部儲存空間</string>
-    <string name="menu_tooltip_kantai3d">開關立體效果</string>
-    <string name="msg_kantai3d_init">未偵測到秘書艦</string>
-    <string name="msg_kantai3d_loaded">已載入目前秘書艦CG的深度圖： %s</string>
-    <string name="msg_kantai3d_error">找不到目前秘書艦CG的深度圖： %s</string>
-    <string name="msg_kantai3d_redirect">欲查看所有支援3D的艦娘CG列表，或貢獻新的深度圖，請前往： https://github.com/laplamgor/kantai3d</string>
 
     <string name="en_download_start">下載開始…</string>
     <string name="en_unzip_start">正在解壓縮……請稍候……</string>
