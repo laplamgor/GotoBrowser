@@ -651,19 +651,47 @@ fun BrowserOverlayLayer(
     closeButtonVisible: Boolean,
     onSubtitleTap: () -> Unit,
     onCaptureClick: () -> Unit,
-    onCloseClick: () -> Unit
+    onCloseClick: () -> Unit,
+    webViewHeight: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified,
+    containerHeight: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         if (showSubtitle && subtitleVisible) {
-            Box(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 12.dp), contentAlignment = Alignment.BottomCenter) {
-                Text(
-                    text = subtitleText.ifEmpty { stringResource(id = R.string.subtitle_default) },
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = subtitleFontSize.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.clickable { onSubtitleTap() }
-                )
+            androidx.compose.ui.layout.Layout(
+                modifier = Modifier.fillMaxSize(),
+                content = {
+                    Text(
+                        text = subtitleText.ifEmpty { stringResource(id = R.string.subtitle_default) },
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = subtitleFontSize.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .clickable { onSubtitleTap() }
+                            .padding(horizontal = 8.dp)
+                    )
+                }
+            ) { measurables, constraints ->
+                val placeable = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
+                
+                val webViewBottomPx = if (webViewHeight != androidx.compose.ui.unit.Dp.Unspecified && containerHeight != androidx.compose.ui.unit.Dp.Unspecified) {
+                    ((containerHeight + webViewHeight) / 2f).toPx()
+                } else {
+                    constraints.maxHeight.toFloat()
+                }
+                
+                val paddingPx = 12.dp.toPx()
+                var y = webViewBottomPx + paddingPx
+                if (y + placeable.height > constraints.maxHeight - paddingPx) {
+                    y = constraints.maxHeight - paddingPx - placeable.height
+                }
+                
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    placeable.placeRelative(
+                        x = (constraints.maxWidth - placeable.width) / 2,
+                        y = y.toInt()
+                    )
+                }
             }
         }
 
@@ -787,23 +815,25 @@ fun BrowserScreenContent(
                     Handler().postDelayed({ showFlash.value = false }, 250)
                 }
             }
-        }
 
-        if (!activity.isInPictureInPictureModeState.value) {
-            BrowserOverlayLayer(
-                showSubtitle = isCaption,
-                subtitleText = subtitleTextValue.value,
-                subtitleVisible = true,
-                subtitleFontSize = subtitleFontSize.value,
-                isCapture = isCapture,
-                closeButtonVisible = closeButtonVisible.value,
-                onSubtitleTap = { /* hidden in this implementation? */ },
-                onCaptureClick = {
-                    manager?.captureGameScreen(activity.findViewById(android.R.id.content))
-                    showFlash.value = true
-                },
-                onCloseClick = { activity.finish() }
-            )
+            if (!activity.isInPictureInPictureModeState.value) {
+                BrowserOverlayLayer(
+                    showSubtitle = isCaption,
+                    subtitleText = subtitleTextValue.value,
+                    subtitleVisible = subtitleVisible.value,
+                    subtitleFontSize = subtitleFontSize.value,
+                    isCapture = isCapture,
+                    closeButtonVisible = closeButtonVisible.value,
+                    onSubtitleTap = { subtitleVisible.value = false },
+                    onCaptureClick = {
+                        manager?.captureGameScreen(activity.findViewById(android.R.id.content))
+                        showFlash.value = true
+                    },
+                    onCloseClick = { activity.finish() },
+                    webViewHeight = finalHeight,
+                    containerHeight = maxHeight
+                )
+            }
         }
     }
 }
