@@ -90,7 +90,7 @@ import com.antest1.gotobrowser.Notification.ScreenshotNotification
 import com.antest1.gotobrowser.R
 import com.antest1.gotobrowser.Subtitle.SubtitleProviderUtils
 import com.antest1.gotobrowser.ui.component.SettingsBottomSheet
-import com.antest1.gotobrowser.ui.component.VerticalFloatingToolbar
+import com.antest1.gotobrowser.ui.component.ControlLayout
 import com.antest1.gotobrowser.ui.theme.GotobrowserTheme
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.util.Locale
@@ -206,9 +206,12 @@ class BrowserActivity : ComponentActivity() {
                         onBackgroundTap = { toolbarVisible.value = !toolbarVisible.value }
                     )
 
-                    VerticalFloatingToolbar(
+                    ControlLayout(
                         visible = toolbarVisible.value,
-                        onVisibleChange = { toolbarVisible.value = it }
+                        onVisibleChange = { toolbarVisible.value = it },
+                        onRefreshClick = { showRefreshDialog() },
+                        onSettingsClick = { settingsSheetVisible.value = true },
+                        onHelpClick = { openManual(this@BrowserActivity) }
                     ) {
                         val isMute by viewModel.isMuteMode.observeAsState(false)
                         val isCapture by viewModel.isCaptureMode.observeAsState(false)
@@ -216,7 +219,6 @@ class BrowserActivity : ComponentActivity() {
                         val isKeep by viewModel.isKeepMode.observeAsState(false)
                         val isCaption by viewModel.isCaptionMode.observeAsState(false)
 
-                        PanelButton(id = R.drawable.refresh_icon, onClick = { showRefreshDialog() })
                         PanelButton(id = R.drawable.volume_off, active = isMute, onClick = { toggleMuteMode() })
                         PanelButton(id = R.drawable.camera_icon, active = isCapture, onClick = {
                             if (!checkStoragePermissionGrated()) showStoragePermissionDialog()
@@ -225,8 +227,6 @@ class BrowserActivity : ComponentActivity() {
                         PanelButton(id = R.drawable.screen_lock, active = isLock, onClick = { viewModel.toggleLockMode(); displayController.updateOrientationLock() })
                         PanelButton(id = R.drawable.light_mode, active = isKeep, onClick = { viewModel.toggleKeepMode() })
                         PanelButton(id = R.drawable.caption_icon, active = isCaption, onClick = { viewModel.toggleCaptionMode() })
-                        PanelButton(id = R.drawable.settings, onClick = { settingsSheetVisible.value = true })
-                        PanelButton(id = R.drawable.help_icon, onClick = { openManual(this@BrowserActivity) })
                     }
 
                     if (settingsSheetVisible.value) {
@@ -773,40 +773,56 @@ fun BrowserScreenContent(
 @Composable
 fun BrowserScreenPreview() {
     GotobrowserTheme {
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxHeight()
-                    .aspectRatio(1200f / 720f)
-                    .background(Color(0xFF101010)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("WebView (not renderable in Preview)", color = Color.White)
-            }
+        ControlPreviewContent()
+    }
+}
 
-            BrowserOverlayLayer(
-                showSubtitle = true,
-                subtitleText = "Sample subtitle text",
-                subtitleVisible = true,
-                subtitleFontSize = 18,
-                isCapture = true,
-                closeButtonVisible = false,
-                onSubtitleTap = {},
-                onCaptureClick = {},
-                onCloseClick = {}
-            )
+@Preview(name = "Browser - Portrait", showBackground = true, widthDp = 480, heightDp = 800)
+@Composable
+fun BrowserScreenPortraitPreview() {
+    GotobrowserTheme {
+        ControlPreviewContent()
+    }
+}
 
-            VerticalFloatingToolbar(visible = true, onVisibleChange = {}) {
-                PanelButton(id = R.drawable.refresh_icon, onClick = {})
-                PanelButton(id = R.drawable.volume_off, active = true, onClick = {})
-                PanelButton(id = R.drawable.camera_icon, active = true, onClick = {})
-                PanelButton(id = R.drawable.screen_lock, onClick = {})
-                PanelButton(id = R.drawable.light_mode, onClick = {})
-                PanelButton(id = R.drawable.caption_icon, active = true, onClick = {})
-                PanelButton(id = R.drawable.settings, onClick = {})
-                PanelButton(id = R.drawable.help_icon, onClick = {})
-            }
+@Composable
+fun ControlPreviewContent() {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxHeight()
+                .aspectRatio(1200f / 720f)
+                .background(Color(0xFF101010)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("WebView (not renderable in Preview)", color = Color.White)
+        }
+
+        BrowserOverlayLayer(
+            showSubtitle = true,
+            subtitleText = "Sample subtitle text",
+            subtitleVisible = true,
+            subtitleFontSize = 18,
+            isCapture = true,
+            closeButtonVisible = false,
+            onSubtitleTap = {},
+            onCaptureClick = {},
+            onCloseClick = {}
+        )
+
+        ControlLayout(
+            visible = true,
+            onVisibleChange = {},
+            onRefreshClick = {},
+            onSettingsClick = {},
+            onHelpClick = {}
+        ) {
+            PanelButton(id = R.drawable.volume_off, active = true, onClick = {})
+            PanelButton(id = R.drawable.camera_icon, active = true, onClick = {})
+            PanelButton(id = R.drawable.screen_lock, onClick = {})
+            PanelButton(id = R.drawable.light_mode, onClick = {})
+            PanelButton(id = R.drawable.caption_icon, active = true, onClick = {})
         }
     }
 }
