@@ -750,9 +750,9 @@ fun BrowserScreenContent(
             }
 
             if (showFlash.value) {
-                Box(modifier = Modifier.matchParentSize().background(Color.White).alpha(0.5f))
+                Box(modifier = Modifier.matchParentSize().background(Color.White.copy(0.5f)))
                 LaunchedEffect(Unit) {
-                    Handler().postDelayed({ showFlash.value = false }, 250)
+                    Handler().postDelayed({ showFlash.value = false }, 100)
                 }
             }
 
@@ -766,7 +766,7 @@ fun BrowserScreenContent(
                     closeButtonVisible = closeButtonVisible.value,
                     onSubtitleTap = { subtitleVisible.value = false },
                     onCaptureClick = {
-                        manager?.captureGameScreen(activity.findViewById(android.R.id.content))
+                        activity.mContentView?.let { manager?.captureGameScreen(it) }
                         showFlash.value = true
                     },
                     onCloseClick = { activity.finish() },
