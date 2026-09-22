@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -39,9 +41,13 @@ fun ControlLayout(
             fab = {
                 FloatingActionButton(
                     onClick = onRefreshClick,
-                    containerColor = Color(0xCC666666),
+                    containerColor = Color.Transparent,
                     contentColor = Color.White,
-                    modifier = Modifier.size(56.dp)
+                    shape = CircleShape,
+                    elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
+                    modifier = Modifier
+                        .size(56.dp)
+                        .glassyStyle(CircleShape)
                 ) {
                     Icon(
                         painterResource(id = R.drawable.refresh_icon), 

@@ -22,7 +22,6 @@ import androidx.annotation.RequiresApi
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -91,6 +90,8 @@ import com.antest1.gotobrowser.R
 import com.antest1.gotobrowser.Subtitle.SubtitleProviderUtils
 import com.antest1.gotobrowser.ui.component.SettingsBottomSheet
 import com.antest1.gotobrowser.ui.component.ControlLayout
+import com.antest1.gotobrowser.ui.component.glassyStyle
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.antest1.gotobrowser.ui.theme.GotobrowserTheme
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.util.Locale
@@ -629,10 +630,18 @@ fun BrowserOverlayLayer(
         if (isCapture) {
             IconButton(
                 onClick = onCaptureClick,
-                modifier = Modifier.align(Alignment.TopEnd).padding(24.dp).size(64.dp)
-                    .background(Color.Black.copy(alpha = 0.5f)).border(2.dp, Color.White)
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(24.dp)
+                    .size(64.dp)
+                    .glassyStyle(RoundedCornerShape(8.dp))
             ) {
-                Icon(painterResource(id = R.drawable.capture_icon), "Capture", tint = Color.White, modifier = Modifier.size(32.dp))
+                Icon(
+                    painterResource(id = R.drawable.capture_icon),
+                    "Capture",
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
             }
         }
 

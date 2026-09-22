@@ -7,6 +7,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,12 +22,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,14 +40,11 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import com.antest1.gotobrowser.R
 
 private const val RevealStrip1LayoutId = "reveal_strip_1"
 private const val RevealStrip2LayoutId = "reveal_strip_2"
@@ -66,8 +60,7 @@ fun AdaptiveFloatingToolbar(
     barLengthFraction: Float = 0.7f,
     revealSize: Dp = 24.dp,
     contentSpacing: Dp = 8.dp,
-    containerColor: Color = Color(0xCC666666),
-    elevation: Dp = 8.dp,
+    elevation: Dp = 0.dp,
     fab: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
@@ -192,6 +185,7 @@ fun AdaptiveFloatingToolbar(
                             Modifier.offset { IntOffset(0, -offsetAnim.value.roundToInt()) }.height(barSize)
                         }
                     )
+                    .glassyStyle(RoundedCornerShape(barSize / 2))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -224,7 +218,7 @@ fun AdaptiveFloatingToolbar(
                         }
                     },
                 shape = RoundedCornerShape(barSize / 2),
-                color = containerColor,
+                color = Color.Transparent,
                 shadowElevation = elevation
             ) {
                 if (isLandscape) {
