@@ -110,11 +110,6 @@
     <string name="settings_mod_crit_enable">진정한 크리티컬 히트</string>
     <string name="settings_mod_crit_summary">하드 코딩된 데미지의 난독화를 제거합니다. 크리티컬 히트(CL2)만을 Critical Hit로 표시됩니다. 저자: @Oradimi</string>
     <string name="settings_use_external_dir">리소스 캐싱 시 외부 저장소 사용</string>
-    <string name="menu_tooltip_kantai3d">3D 적용</string>
-    <string name="msg_kantai3d_init">비서함 감지 안됨</string>
-    <string name="msg_kantai3d_loaded">현재 비서함 CG의 depth map 정보를 불러왔습니다： %s</string>
-    <string name="msg_kantai3d_error">현재 비서함 CG의 depth map 정보를 찾을 수 없습니다： %s</string>
-    <string name="msg_kantai3d_redirect">3D를 지원하는 모든 CG 목록을 보거나 새 depth map을 제출하려면 여기로 이동합니다： https://github.com/laplamgor/kantai3d</string>
 
     <string name="en_download_start">다운로드 시작 중…</string>
     <string name="en_unzip_start">압축을 푸는 중… 잠시만 기다려 주세요…</string>
