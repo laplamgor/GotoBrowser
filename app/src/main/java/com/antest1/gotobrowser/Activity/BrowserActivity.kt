@@ -33,10 +33,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -220,14 +225,39 @@ class BrowserActivity : ComponentActivity() {
                         val isKeep by viewModel.isKeepMode.observeAsState(false)
                         val isCaption by viewModel.isCaptionMode.observeAsState(false)
 
-                        PanelButton(id = R.drawable.volume_off, active = isMute, onClick = { toggleMuteMode() })
-                        PanelButton(id = R.drawable.camera_icon, active = isCapture, onClick = {
-                            if (!checkStoragePermissionGrated()) showStoragePermissionDialog()
-                            viewModel.toggleCaptureMode()
-                        })
-                        PanelButton(id = R.drawable.screen_lock, active = isLock, onClick = { viewModel.toggleLockMode(); displayController.updateOrientationLock() })
-                        PanelButton(id = R.drawable.light_mode, active = isKeep, onClick = { viewModel.toggleKeepMode() })
-                        PanelButton(id = R.drawable.caption_icon, active = isCaption, onClick = { viewModel.toggleCaptionMode() })
+                        PanelButton(
+                            id = R.drawable.volume_off,
+                            tooltip = stringResource(R.string.menu_tooltip_mute),
+                            active = isMute,
+                            onClick = { toggleMuteMode() }
+                        )
+                        PanelButton(
+                            id = R.drawable.camera_icon,
+                            tooltip = stringResource(R.string.menu_tooltip_camera),
+                            active = isCapture,
+                            onClick = {
+                                if (!checkStoragePermissionGrated()) showStoragePermissionDialog()
+                                viewModel.toggleCaptureMode()
+                            }
+                        )
+                        PanelButton(
+                            id = R.drawable.screen_lock,
+                            tooltip = stringResource(R.string.menu_tooltip_lock),
+                            active = isLock,
+                            onClick = { viewModel.toggleLockMode(); displayController.updateOrientationLock() }
+                        )
+                        PanelButton(
+                            id = R.drawable.light_mode,
+                            tooltip = stringResource(R.string.menu_tooltip_brighton),
+                            active = isKeep,
+                            onClick = { viewModel.toggleKeepMode() }
+                        )
+                        PanelButton(
+                            id = R.drawable.caption_icon,
+                            tooltip = stringResource(R.string.menu_tooltip_cc),
+                            active = isCaption,
+                            onClick = { viewModel.toggleCaptionMode() }
+                        )
                     }
 
                     if (settingsSheetVisible.value) {
@@ -540,14 +570,35 @@ class BrowserActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PanelButton(id: Int, active: Boolean = false, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
-        Icon(
-            painterResource(id = id), null,
-            tint = if (active) Color(0xFFFFC400) else Color.White,
-            modifier = Modifier.size(20.dp)
-        )
+fun PanelButton(
+    id: Int,
+    tooltip: String? = null,
+    active: Boolean = false,
+    onClick: () -> Unit
+) {
+    val button = @Composable {
+        IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
+            Icon(
+                painterResource(id = id),
+                contentDescription = tooltip,
+                tint = if (active) Color(0xFFFFC400) else Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+
+    if (tooltip != null) {
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+            tooltip = { PlainTooltip { Text(tooltip) } },
+            state = rememberTooltipState()
+        ) {
+            button()
+        }
+    } else {
+        button()
     }
 }
 
@@ -638,7 +689,7 @@ fun BrowserOverlayLayer(
             ) {
                 Icon(
                     painterResource(id = R.drawable.capture_icon),
-                    "Capture",
+                    stringResource(R.string.menu_tooltip_camera),
                     tint = Color.White,
                     modifier = Modifier.size(32.dp)
                 )
@@ -827,11 +878,11 @@ fun ControlPreviewContent() {
             onSettingsClick = {},
             onHelpClick = {}
         ) {
-            PanelButton(id = R.drawable.volume_off, active = true, onClick = {})
-            PanelButton(id = R.drawable.camera_icon, active = true, onClick = {})
-            PanelButton(id = R.drawable.screen_lock, onClick = {})
-            PanelButton(id = R.drawable.light_mode, onClick = {})
-            PanelButton(id = R.drawable.caption_icon, active = true, onClick = {})
+            PanelButton(id = R.drawable.volume_off, tooltip = stringResource(R.string.menu_tooltip_mute), active = true, onClick = {})
+            PanelButton(id = R.drawable.camera_icon, tooltip = stringResource(R.string.menu_tooltip_camera), active = true, onClick = {})
+            PanelButton(id = R.drawable.screen_lock, tooltip = stringResource(R.string.menu_tooltip_lock), onClick = {})
+            PanelButton(id = R.drawable.light_mode, tooltip = stringResource(R.string.menu_tooltip_brighton), onClick = {})
+            PanelButton(id = R.drawable.caption_icon, tooltip = stringResource(R.string.menu_tooltip_cc), active = true, onClick = {})
         }
     }
 }
