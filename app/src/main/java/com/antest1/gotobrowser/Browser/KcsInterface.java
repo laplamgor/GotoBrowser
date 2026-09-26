@@ -8,7 +8,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
-import android.widget.TextView;
 
 import com.antest1.gotobrowser.Activity.BrowserActivity;
 import com.antest1.gotobrowser.ContentProvider.KcaPacketStore;

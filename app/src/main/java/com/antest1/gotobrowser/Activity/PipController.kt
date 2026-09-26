@@ -30,7 +30,7 @@ class PipController(
             )
             mContentView?.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
                 if (left != oldLeft || right != oldRight || top != oldTop || bottom != oldBottom) {
-                    mContentView?.getGlobalVisibleRect(sourceRectHint)
+                    mContentView.getGlobalVisibleRect(sourceRectHint)
                     activity.setPictureInPictureParams(
                         PictureInPictureParams.Builder()
                             .setSeamlessResizeEnabled(false)
