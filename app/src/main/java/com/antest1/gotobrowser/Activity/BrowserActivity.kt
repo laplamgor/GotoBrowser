@@ -349,6 +349,7 @@ class BrowserActivity : ComponentActivity() {
             PREF_PIP_MODE -> pipController.setupSmoothPipAnimation()
             PREF_KEYBOARD -> displayController.applyKeyboardSetting()
             PREF_DEVTOOLS_DEBUG -> WebViewManager.setWebViewDebugging(viewModel.sharedPref.getBoolean(PREF_DEVTOOLS_DEBUG, false))
+            PREF_DISABLE_REFRESH_DIALOG -> viewModel.setNoRefreshPopupMode(viewModel.sharedPref.getBoolean(PREF_DISABLE_REFRESH_DIALOG, false))
         }
     }
 
