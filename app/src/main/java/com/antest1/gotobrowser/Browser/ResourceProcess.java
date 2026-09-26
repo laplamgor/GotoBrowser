@@ -71,7 +71,6 @@ public class ResourceProcess {
     public static final String HTTP_DATE_FORMAT = "EEE, dd MMM yyyy HH:mm:ss z";
 
     private static final String TAG_D = "GOTO-D";
-    private static final String TAG_E = "GOTO-E";
     private static final String TAG_G = "GOTO";
 
     private static String userAgent;
@@ -615,7 +614,7 @@ public class ResourceProcess {
             for (int length; (length = inputStream.read(buffer)) != -1;) {
                 result.write(buffer, 0, length);
             }
-            return result.toString("utf-8");
+            return result.toString(StandardCharsets.UTF_8);
         } catch (IOException e) { return null; }
     }
 
@@ -625,7 +624,6 @@ public class ResourceProcess {
             else return new WebResourceResponse("text/html", "utf-8", context.getAssets().open("maintenance.html"));
         } catch (IOException e) { return null; }
     }
-
 
     class SubtitleRunnable implements Runnable {
         String subtitle_text;

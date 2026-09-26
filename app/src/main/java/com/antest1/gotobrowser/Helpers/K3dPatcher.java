@@ -172,7 +172,7 @@ public class K3dPatcher implements SensorEventListener {
         }
 
         String replaced = main_js;
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         Matcher matcher = null;
         for (Map.Entry<String, String> stringToReplace : stringsToReplace.entrySet()) {
             Pattern pattern = Pattern.compile(stringToReplace.getKey());

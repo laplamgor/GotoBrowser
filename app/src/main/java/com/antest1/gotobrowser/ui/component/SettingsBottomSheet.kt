@@ -387,7 +387,7 @@ private fun DownloadSection(viewModel: SettingsViewModel?, onSettingChanged: (St
     val context = LocalContext.current
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
     SwitchRow(viewModel, PREF_USE_EXTCACHE, R.string.settings_use_external_dir, R.string.settings_recommended_summary,
-        onChanged = { if (!isPreview) viewModel!!.onExternalCacheChanged() }, onSettingChanged = onSettingChanged)
+        onChanged = { if (!isPreview) viewModel.onExternalCacheChanged() }, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_FONT_PREFETCH, R.string.browser_fontprefetch, R.string.settings_recommended_summary, defaultValue = true, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_DOWNLOAD_RETRY, R.string.settings_retry_enable, R.string.settings_retry_summary,
         onSettingChanged = onSettingChanged)
@@ -396,7 +396,7 @@ private fun DownloadSection(viewModel: SettingsViewModel?, onSettingChanged: (St
         summary = R.string.clearcache_msg,
         onClick = {
             if (!isPreview) {
-                viewModel!!.clearBrowserCache()
+                viewModel.clearBrowserCache()
                 KcUtils.showToast(context.applicationContext, R.string.cache_cleared_toast)
             }
         }
@@ -407,11 +407,11 @@ private fun DownloadSection(viewModel: SettingsViewModel?, onSettingChanged: (St
 private fun SubtitleSection(viewModel: SettingsViewModel?, subtitleSummary: String, subtitleEnabled: Boolean, onSettingChanged: (String) -> Unit) {
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
     ListRow(viewModel, PREF_SUBTITLE_LOCALE, R.string.settings_subtitle_language, subtitleLocaleOptions(),
-        onSelected = { if (!isPreview) viewModel!!.onSubtitleLocaleChanged(it); true },
+        onSelected = { if (!isPreview) viewModel.onSubtitleLocaleChanged(it); true },
         onSettingChanged = onSettingChanged)
 
     var showSubtitleSizeDialog by remember { mutableStateOf(false) }
-    val subtitleSize = remember { mutableIntStateOf(if (isPreview) 16 else viewModel!!.getSubtitleFontSize()) }
+    val subtitleSize = remember { mutableIntStateOf(if (isPreview) 16 else viewModel.subtitleFontSize) }
     ClickRow(
         title = R.string.settings_subtitle_fontsize,
         summaryText = subtitleSize.intValue.toString(),
@@ -422,7 +422,7 @@ private fun SubtitleSection(viewModel: SettingsViewModel?, subtitleSummary: Stri
             initialSize = subtitleSize.intValue,
             onSave = { newSize ->
                 if (!isPreview) {
-                    viewModel!!.setInt(PREF_SUBTITLE_FONTSIZE, newSize)
+                    viewModel.setInt(PREF_SUBTITLE_FONTSIZE, newSize)
                 }
                 subtitleSize.intValue = newSize
                 showSubtitleSizeDialog = false
@@ -436,7 +436,7 @@ private fun SubtitleSection(viewModel: SettingsViewModel?, subtitleSummary: Stri
         title = R.string.settings_subtitle_download,
         summaryText = subtitleSummary,
         enabled = subtitleEnabled,
-        onClick = { if (!isPreview) viewModel!!.downloadSubtitleUpdate() }
+        onClick = { if (!isPreview) viewModel.downloadSubtitleUpdate() }
     )
 }
 
@@ -463,12 +463,12 @@ private fun ConnectionLoginSection(
 
     if (showLoginForm) {
         LoginFormDialog(
-            initialId = if (isPreview) "" else viewModel!!.getString(PREF_DMM_ID, ""),
-            initialPassword = if (isPreview) "" else viewModel!!.getString(PREF_DMM_PASS, ""),
+            initialId = if (isPreview) "" else viewModel.getString(PREF_DMM_ID, ""),
+            initialPassword = if (isPreview) "" else viewModel.getString(PREF_DMM_PASS, ""),
             onSave = { loginId, loginPassword ->
                 if (!isPreview) {
-                    viewModel!!.setString(PREF_DMM_ID, loginId)
-                    viewModel!!.setString(PREF_DMM_PASS, loginPassword)
+                    viewModel.setString(PREF_DMM_ID, loginId)
+                    viewModel.setString(PREF_DMM_PASS, loginPassword)
                 }
                 showLoginForm = false
                 onSettingChanged(PREF_DMM_ID)
@@ -487,7 +487,7 @@ private fun ConnectionLoginSection(
     // Shown when the user disables broadcast while Kcanotify is installed.
     var showKcanotifyWarning by remember { mutableStateOf(false) }
 
-    var connector by remember { mutableStateOf(if (isPreview) CONN_DMM else viewModel!!.getString(PREF_CONNECTOR, CONN_DMM)) }
+    var connector by remember { mutableStateOf(if (isPreview) CONN_DMM else viewModel.getString(PREF_CONNECTOR, CONN_DMM)) }
 
     ListRow(
         viewModel, PREF_CONNECTOR, R.string.select_server, connectorOptions(),
@@ -498,7 +498,7 @@ private fun ConnectionLoginSection(
                 // user know which URL that resolves to.
                 val index = connectorOptions().indexOfFirst { it.value == value }
                 if (index in URL_LIST.indices) {
-                    viewModel!!.setString(PREF_LATEST_URL, URL_LIST[index])
+                    viewModel.setString(PREF_LATEST_URL, URL_LIST[index])
                     KcUtils.showToast(context.applicationContext, URL_LIST[index])
                 }
                 // Unofficial connectors serve resources that differ from DMM's,
@@ -515,7 +515,7 @@ private fun ConnectionLoginSection(
     if (showDisclaimer) {
         ThirdPartyConnectorDialog(
             onAccept = {
-                if (!isPreview) viewModel!!.setBoolean(PREF_TP_DISCLAIMED, true)
+                if (!isPreview) viewModel.setBoolean(PREF_TP_DISCLAIMED, true)
                 showDisclaimer = false
             },
             onDismiss = { showDisclaimer = false }
@@ -525,7 +525,7 @@ private fun ConnectionLoginSection(
     if (showKcanotifyWarning) {
         KcanotifyBroadcastDialog(
             onAccept = {
-                if (!isPreview) viewModel!!.setBoolean(PREF_BROADCAST, true)
+                if (!isPreview) viewModel.setBoolean(PREF_BROADCAST, true)
                 showKcanotifyWarning = false
             },
             onDismiss = { showKcanotifyWarning = false }
@@ -536,7 +536,7 @@ private fun ConnectionLoginSection(
     SwitchRow(viewModel, PREF_SILENT, R.string.mode_silent, enabled = connector == CONN_DMM, onSettingChanged = onSettingChanged)
     SwitchRow(viewModel, PREF_BROADCAST, R.string.mode_broadcast, R.string.mode_broadcast_summary, defaultValue = true,
         onChanged = {
-            if (!isPreview && !viewModel!!.getBoolean(PREF_BROADCAST, true)
+            if (!isPreview && !viewModel.getBoolean(PREF_BROADCAST, true)
                 && KcUtils.isKcanotifyInstalled(context.applicationContext)) {
                 showKcanotifyWarning = true
             }
@@ -552,7 +552,7 @@ private fun ConnectionLoginSection(
     SwitchRow(viewModel, PREF_ALTER_GADGET, R.string.connection_use_alter, R.string.connection_use_alter_summary,
         onSettingChanged = onSettingChanged)
 
-    val alterGadgetEnabled = if (isPreview) false else viewModel!!.getBoolean(PREF_ALTER_GADGET, false)
+    val alterGadgetEnabled = if (isPreview) false else viewModel.getBoolean(PREF_ALTER_GADGET, false)
     ListRow(
         viewModel, PREF_ALTER_METHOD, R.string.setting_alter_method, alterMethodOptions(),
         enabled = alterGadgetEnabled,
@@ -560,7 +560,7 @@ private fun ConnectionLoginSection(
             if (isPreview) {
                 true
             } else {
-                if (viewModel!!.onAlterMethodSelected(value)) {
+                if (viewModel.onAlterMethodSelected(value)) {
                     true
                 } else {
                     scope.launch {
@@ -573,7 +573,7 @@ private fun ConnectionLoginSection(
         onSettingChanged = onSettingChanged
     )
 
-    var endpoint by remember { mutableStateOf(if (isPreview) "http://localhost" else viewModel!!.getAlterEndpoint()) }
+    var endpoint by remember { mutableStateOf(if (isPreview) "http://localhost" else viewModel.alterEndpoint) }
     var showEndpointDialog by remember { mutableStateOf(false) }
     ClickRow(
         title = R.string.setting_alter_endpoint,
@@ -587,8 +587,8 @@ private fun ConnectionLoginSection(
             initialValue = endpoint,
             onSave = { value ->
                 if (!isPreview) {
-                    viewModel!!.onAlterEndpointChanged(value)
-                    endpoint = viewModel.getAlterEndpoint()
+                    viewModel.onAlterEndpointChanged(value)
+                    endpoint = viewModel.alterEndpoint
                 } else {
                     endpoint = value
                 }
@@ -621,7 +621,7 @@ private fun ModsSection(
 
     // --- Group 2: Kantai3D Mod -----------------------------------------------
     SectionHeader(R.string.settings_mod_group_kantai3d)
-    val kantai3dEnabled = if (isPreview) false else viewModel!!.isKantai3dEnabled()
+    val kantai3dEnabled = if (isPreview) false else viewModel.isKantai3dEnabled
     SwitchRow(viewModel, PREF_MOD_KANTAI3D, R.string.settings_mod_kantai3d_enable,
         R.string.settings_mod_kantai3d_summary, enabled = kantai3dEnabled, onSettingChanged = onSettingChanged)
     ClickRow(
@@ -633,14 +633,14 @@ private fun ModsSection(
     // --- Group 3: English & Language Patches --------------------------------
     SectionHeader(R.string.settings_mod_group_kccp)
     SwitchRow(viewModel, PREF_MOD_KCCP_LANG_PATCH, R.string.settings_mod_kccp, R.string.settings_mod_kccp_summary,
-        onChanged = { if (!isPreview) viewModel!!.onKccpPatchChanged() }, onSettingChanged = onSettingChanged)
+        onChanged = { if (!isPreview) viewModel.onKccpPatchChanged() }, onSettingChanged = onSettingChanged)
 
-    val patchEnabled = if (isPreview) false else viewModel!!.isKccpPatchEnabled()
+    val patchEnabled = if (isPreview) false else viewModel.isKccpPatchEnabled()
     ListRow(
         viewModel, PREF_MOD_KCCP_LANG_PATCH_NAME, R.string.settings_mod_kccp_patch_name, kccpLanguageOptions(),
         enabled = patchEnabled,
-        summaryProvider = { if (isPreview) "" else viewModel!!.getKccpPatchSummary(it) },
-        onSelected = { if (!isPreview) viewModel!!.onPatchLanguageChanged(it); true },
+        summaryProvider = { if (isPreview) "" else viewModel.getKccpPatchSummary(it) },
+        onSelected = { if (!isPreview) viewModel.onPatchLanguageChanged(it); true },
         onSettingChanged = onSettingChanged
     )
 
@@ -648,18 +648,17 @@ private fun ModsSection(
         title = R.string.settings_mod_kantaien_download,
         summaryText = patchSummary,
         enabled = patchEnabled && patchEnabledState,
-        onClick = { if (!isPreview) viewModel!!.requestPatchUpdate() }
+        onClick = { if (!isPreview) viewModel.requestPatchUpdate() }
     )
     ClickRow(
         title = R.string.settings_mod_kantaien_delete,
         summary = R.string.settings_mod_kantaien_delete_summary,
         enabled = patchEnabled,
-        onClick = { if (!isPreview) viewModel!!.requestPatchDelete() }
+        onClick = { if (!isPreview) viewModel.requestPatchDelete() }
     )
     ClickRow(
         title = patchTitle,
         summaryText = patchUrl,
-        enabled = patchEnabled,
         onClick = { openUrl(context, patchUrl) }
     )
 }
@@ -677,7 +676,7 @@ private fun AppInfoSection(
     val scope = rememberCoroutineScope()
     ClickRow(
         title = R.string.settings_version_label,
-        summaryText = if (isPreview) "3.0-rev9" else viewModel!!.getAppVersion(),
+        summaryText = if (isPreview) "3.0-rev9" else viewModel.appVersion,
         onClick = {},
         enabled = false
     )
@@ -692,7 +691,7 @@ private fun AppInfoSection(
             // Show the result in the sheet's own snackbar: the sheet renders in
             // a separate window, so the activity's snackbar would be hidden
             // behind it.
-            viewModel!!.checkAppUpdate(activity) { message ->
+            viewModel.checkAppUpdate(activity) { message ->
                 if (message == null) {
                     // Download chosen; the user is leaving for the browser.
                     onDismissRequest()
@@ -759,7 +758,7 @@ private fun SwitchRow(
     onSettingChanged: (String) -> Unit = {}
 ) {
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
-    val checked = remember { mutableStateOf(if (isPreview) defaultValue else viewModel!!.getBoolean(key, defaultValue)) }
+    val checked = remember { mutableStateOf(if (isPreview) defaultValue else viewModel.getBoolean(key, defaultValue)) }
     ListItem(
         headlineContent = { Text(stringResource(titleRes)) },
         supportingContent = summaryRes?.let { { Text(stringResource(it)) } },
@@ -770,7 +769,7 @@ private fun SwitchRow(
                 onCheckedChange = {
                     checked.value = it
                     if (!isPreview) {
-                        viewModel!!.setBoolean(key, it)
+                        viewModel.setBoolean(key, it)
                     }
                     onChanged()
                     onSettingChanged(key)
@@ -781,7 +780,7 @@ private fun SwitchRow(
             val newValue = !checked.value
             checked.value = newValue
             if (!isPreview) {
-                viewModel!!.setBoolean(key, newValue)
+                viewModel.setBoolean(key, newValue)
             }
             onChanged()
             onSettingChanged(key)
@@ -827,7 +826,7 @@ private fun ListRow(
     onSettingChanged: (String) -> Unit = {}
 ) {
     val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current || viewModel == null
-    var selected by remember { mutableStateOf(if (isPreview) options.first().value else viewModel!!.getString(key, options.first().value)) }
+    var selected by remember { mutableStateOf(if (isPreview) options.first().value else viewModel.getString(key, options.first().value)) }
     var showDialog by remember { mutableStateOf(false) }
 
     ListItem(
@@ -846,7 +845,7 @@ private fun ListRow(
                 if (onSelected(value)) {
                     selected = value
                     if (!isPreview) {
-                        viewModel!!.setString(key, value)
+                        viewModel.setString(key, value)
                     }
                     onSettingChanged(key)
                 }

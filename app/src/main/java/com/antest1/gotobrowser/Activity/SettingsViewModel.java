@@ -244,7 +244,7 @@ public class SettingsViewModel extends AndroidViewModel {
     public void refreshSubtitleDescription() {
         Context context = getApplication().getApplicationContext();
         String subtitleLocale = sharedPref.getString(PREF_SUBTITLE_LOCALE, "");
-        if (subtitleLocale != null && !subtitleLocale.isEmpty()) {
+        if (!subtitleLocale.isEmpty()) {
             SubtitleProviderUtils.getSubtitleProvider(subtitleLocale)
                     .checkUpdateFromPreference(host, subtitleLocale, versionTable);
         } else {
