@@ -13,6 +13,8 @@
     <string name="thirdpartyconnector_msg">非公式のWebプロキシ型コネクタ（OOIなど）の場合、その方針によってゲームリソースが本来のものと異なることがあります。GotoBrowserは各コネクタの方針を関知しません。非公式のリソースを表示したくない場合は、キャッシュを削除してDMM Directでプレイしてください。</string>
     <string name="backpress_msg">もう一度押すと終了します</string>
     <string name="refresh_msg">リフレッシュしますか？</string>
+    <string name="refresh_quick_msg">ゲームフレームのみを再読み込みし、ページ全体は更新しません。\n\nクイックリフレッシュは常に成功するとは限りません。ネットワークエラーが発生した場合は、フルリフレッシュを使用してください。</string>
+    <string name="refresh_full_msg">ページ全体を再読み込みします。最も確実なリフレッシュ方法ですが、クイックリフレッシュより時間がかかります。</string>
     <string name="mode_landscape">横向きのみ</string>
     <string name="mode_adjustment">レイアウト自動調整</string>
     <string name="mode_silent">音量OFFでスタート</string>
@@ -73,6 +75,8 @@
     <string name="setting_cursor_mode_mouse">マウス使用</string>
 
     <string name="menu_tooltip_refresh">リフレッシュ</string>
+    <string name="menu_quick_refresh">クイックリフレッシュ</string>
+    <string name="menu_full_refresh">フルリフレッシュ</string>
     <string name="menu_tooltip_mute">ミュート</string>
     <string name="menu_tooltip_camera">スクリーンショット</string>
     <string name="menu_tooltip_lock">回転ロック</string>

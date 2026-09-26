@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
@@ -51,7 +52,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
@@ -78,6 +78,7 @@ import com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD
 import com.antest1.gotobrowser.Constants.PREF_ALTER_METHOD_PROXY
 import com.antest1.gotobrowser.Constants.PREF_BROADCAST
 import com.antest1.gotobrowser.Constants.PREF_CONNECTOR
+import com.antest1.gotobrowser.Constants.PREF_DEVTOOLS_DEBUG
 import com.antest1.gotobrowser.Constants.PREF_DISABLE_REFRESH_DIALOG
 import com.antest1.gotobrowser.Constants.PREF_DOWNLOAD_RETRY
 import com.antest1.gotobrowser.Constants.PREF_KEYBOARD
@@ -93,10 +94,10 @@ import com.antest1.gotobrowser.Helpers.KcUtils
 import com.antest1.gotobrowser.Notification.ScreenshotNotification
 import com.antest1.gotobrowser.R
 import com.antest1.gotobrowser.Subtitle.SubtitleProviderUtils
-import com.antest1.gotobrowser.ui.component.SettingsBottomSheet
 import com.antest1.gotobrowser.ui.component.ControlLayout
+import com.antest1.gotobrowser.ui.component.RefreshOption
+import com.antest1.gotobrowser.ui.component.SettingsBottomSheet
 import com.antest1.gotobrowser.ui.component.glassyStyle
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.antest1.gotobrowser.ui.theme.GotobrowserTheme
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.util.Locale
@@ -124,6 +125,7 @@ class BrowserActivity : ComponentActivity() {
     private val toolbarVisible = mutableStateOf(false)
     private val settingsSheetVisible = mutableStateOf(false)
     private val refreshPromptVisible = mutableStateOf(false)
+    private val refreshOption = mutableStateOf(RefreshOption.QUICK)
     private val subtitleFontSize = mutableStateOf(DEFAULT_SUBTITLE_FONT_SIZE)
     private val multiwinMarginDp = mutableStateOf(0)
 
@@ -134,7 +136,8 @@ class BrowserActivity : ComponentActivity() {
         PREF_DOWNLOAD_RETRY,
         PREF_PIP_MODE,
         PREF_PANELSTART,
-        PREF_DISABLE_REFRESH_DIALOG
+        PREF_DISABLE_REFRESH_DIALOG,
+        PREF_DEVTOOLS_DEBUG
     )
 
     @SuppressLint("SourceLockedOrientationActivity", "ClickableViewAccessibility")
@@ -142,6 +145,7 @@ class BrowserActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         viewModel = ViewModelProvider(this)[BrowserViewModel::class.java]
+        WebViewManager.setWebViewDebugging(viewModel.sharedPref.getBoolean(PREF_DEVTOOLS_DEBUG, false))
         settingsViewModel = ViewModelProvider(this)[SettingsViewModel::class.java]
         screenshotNotification = ScreenshotNotification(this)
         backPressCloseHandler = BackPressCloseHandler(this, true)
@@ -156,6 +160,7 @@ class BrowserActivity : ComponentActivity() {
         }
 
         toolbarVisible.value = viewModel.sharedPref.getBoolean(PREF_PANELSTART, true)
+        refreshOption.value = if (viewModel.isQuickGameReload) RefreshOption.QUICK else RefreshOption.FULL
         subtitleFontSize.value = settingsViewModel.getSubtitleFontSize()
 
         loadSubtitleData()
@@ -215,7 +220,14 @@ class BrowserActivity : ComponentActivity() {
                     ControlLayout(
                         visible = toolbarVisible.value,
                         onVisibleChange = { toolbarVisible.value = it },
-                        onRefreshClick = { showRefreshDialog() },
+                        onRefreshClick = { showRefreshDialog(refreshOption.value) },
+                        onQuickRefreshClick = { showRefreshDialog(RefreshOption.QUICK) },
+                        onFullRefreshClick = { showRefreshDialog(RefreshOption.FULL) },
+                        selectedRefreshOption = refreshOption.value,
+                        onRefreshOptionChange = { option ->
+                            refreshOption.value = option
+                            viewModel.setQuickGameReload(option == RefreshOption.QUICK)
+                        },
                         onSettingsClick = { settingsSheetVisible.value = true },
                         onHelpClick = { openManual(this@BrowserActivity) }
                     ) {
@@ -284,7 +296,7 @@ class BrowserActivity : ComponentActivity() {
                             onRefreshNow = {
                                 refreshPromptVisible.value = false
                                 settingsSheetVisible.value = false
-                                refreshPageOrFinish()
+                                refreshPageOrFinish(RefreshOption.FULL)
                             },
                             onChangeWithoutRefresh = { refreshPromptVisible.value = false }
                         )
@@ -336,6 +348,7 @@ class BrowserActivity : ComponentActivity() {
             PREF_SUBTITLE_FONTSIZE -> subtitleFontSize.value = settingsViewModel.getSubtitleFontSize()
             PREF_PIP_MODE -> pipController.setupSmoothPipAnimation()
             PREF_KEYBOARD -> displayController.applyKeyboardSetting()
+            PREF_DEVTOOLS_DEBUG -> WebViewManager.setWebViewDebugging(viewModel.sharedPref.getBoolean(PREF_DEVTOOLS_DEBUG, false))
         }
     }
 
@@ -414,7 +427,7 @@ class BrowserActivity : ComponentActivity() {
             .setTitle(KcUtils.getWebkitErrorCodeText(errorCode))
             .setCancelable(false)
             .setMessage((description + "\n\n" + failingUrl).trim { it <= ' ' })
-            .setPositiveButton("Reload") { _, _ -> refreshPageOrFinish() }
+            .setPositiveButton("Reload") { _, _ -> refreshPageOrFinish(RefreshOption.FULL) }
             .setNegativeButton("Close") { dialog, _ -> dialog.cancel() }
             .show()
     }
@@ -429,26 +442,35 @@ class BrowserActivity : ComponentActivity() {
             .show()
     }
 
-    private fun refreshPageOrFinish() {
+    private fun refreshPageOrFinish(option: RefreshOption = refreshOption.value) {
         viewModel.connectorInfo = WebViewManager.getDefaultPage(this)
         val info = viewModel.connectorInfo
         if (manager != null && info != null && info.size == 2) {
-            mContentView?.let { manager?.refreshPage(it) }
+            mContentView?.let {
+                when (option) {
+                    RefreshOption.QUICK -> manager?.refreshGameFrame(it)
+                    RefreshOption.FULL -> manager?.refreshPage(it)
+                }
+            }
         } else {
             finish()
         }
     }
 
-    fun showRefreshDialog() {
+    fun showRefreshDialog(option: RefreshOption = refreshOption.value) {
         if (java.lang.Boolean.TRUE == viewModel.isNoRefreshPopupMode.value) {
-            refreshPageOrFinish()
+            refreshPageOrFinish(option)
         } else {
+            val (titleRes, messageRes) = when (option) {
+                RefreshOption.QUICK -> R.string.menu_quick_refresh to R.string.refresh_quick_msg
+                RefreshOption.FULL -> R.string.menu_full_refresh to R.string.refresh_full_msg
+            }
             mContentView?.pauseTimers()
             MaterialAlertDialogBuilder(this)
-                .setTitle(getString(R.string.app_name))
+                .setTitle(getString(titleRes))
                 .setCancelable(false)
-                .setMessage(getString(R.string.refresh_msg))
-                .setPositiveButton(R.string.action_ok) { _, _ -> refreshPageOrFinish() }
+                .setMessage(getString(messageRes))
+                .setPositiveButton(R.string.action_ok) { _, _ -> refreshPageOrFinish(option) }
                 .setNegativeButton(R.string.action_cancel) { dialog, _ ->
                     dialog.cancel()
                     mContentView?.resumeTimers()

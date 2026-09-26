@@ -34,7 +34,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
@@ -43,6 +42,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -162,6 +162,7 @@ fun AdaptiveFloatingToolbar(
                 Box(
                     modifier = Modifier
                         .layoutId(FabLayoutId)
+                        .zIndex(1f)
                         .then(
                             if (isLandscape) {
                                 Modifier.offset { IntOffset(offsetAnim.value.roundToInt(), 0) }.size(barSize)

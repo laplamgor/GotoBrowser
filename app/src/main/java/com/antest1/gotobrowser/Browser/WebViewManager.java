@@ -310,6 +310,23 @@ public class WebViewManager {
         webview.loadUrl("about:blank");
     }
 
+    /**
+     * Reloads only the game frame (iframe) instead of the whole page.
+     * Lighter and faster than {@link #refreshPage(WebViewL)}, but it may not
+     * always recover the game when the surrounding page is in a broken state.
+     */
+    public void refreshGameFrame(WebViewL webview) {
+        ValueCallback<String> callback = s -> Log.e("GOTO", "refreshGameFrame " + s);
+
+        String pref_connector = sharedPref.getString(PREF_CONNECTOR, CONN_DMM);
+        if (CONN_DMM.equals(pref_connector)) {
+            webview.evaluateJavascript(REFRESH_GAME_FRAME_DMM, callback);
+        } else if (CONN_KANMOE.equals(pref_connector) || CONN_OOI.equals(pref_connector)) {
+            webview.evaluateJavascript(REFRESH_GAME_FRAME_OOI, callback);
+        }
+        webview.resumeTimers();
+    }
+
     public void openPage(WebViewL webview, List<String> connector_info) {
         String login_id = sharedPref.getString(PREF_DMM_ID, ""); // intent.getStringExtra("login_id");
         String login_password = sharedPref.getString(PREF_DMM_PASS, "");

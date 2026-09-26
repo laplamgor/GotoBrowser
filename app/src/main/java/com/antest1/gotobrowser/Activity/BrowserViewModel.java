@@ -24,6 +24,7 @@ import static com.antest1.gotobrowser.Constants.PREF_SHOWCC;
 import static com.antest1.gotobrowser.Constants.PREF_LOCKMODE;
 import static com.antest1.gotobrowser.Constants.PREF_KEEPMODE;
 import static com.antest1.gotobrowser.Constants.PREF_DISABLE_REFRESH_DIALOG;
+import static com.antest1.gotobrowser.Constants.PREF_QUICK_GAME_RELOAD;
 
 public class BrowserViewModel extends AndroidViewModel {
     private final SharedPreferences sharedPref;
@@ -108,6 +109,16 @@ public class BrowserViewModel extends AndroidViewModel {
     public void setNoRefreshPopupMode(boolean value) {
         isNoRefreshPopupMode.setValue(value);
         sharedPref.edit().putBoolean(PREF_DISABLE_REFRESH_DIALOG, value).apply();
+    }
+
+    /** Whether the refresh button currently performs a quick (game frame only) reload.
+     *  Defaults to false, meaning the refresh button performs a full page reload. */
+    public boolean isQuickGameReload() {
+        return sharedPref.getBoolean(PREF_QUICK_GAME_RELOAD, false);
+    }
+
+    public void setQuickGameReload(boolean value) {
+        sharedPref.edit().putBoolean(PREF_QUICK_GAME_RELOAD, value).apply();
     }
 
     public K3dPatcher getK3dPatcher() { return k3dPatcher; }
