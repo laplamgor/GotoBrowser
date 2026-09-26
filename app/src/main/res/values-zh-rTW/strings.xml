@@ -12,6 +12,8 @@
     <string name="thirdpartyconnector_msg">使用非官方網頁代理連接（如 OOI）時，依其政策，遊戲資源可能與原始資源不同。GotoBrowser 不干預各連接的政策。如果不希望顯示非官方資源，請清除快取並使用 DMM Direct 進行遊戲。</string>
     <string name="backpress_msg">再按一次返回鍵退出</string>
     <string name="refresh_msg">是否要重新整理頁面？</string>
+    <string name="refresh_quick_msg">僅重新載入遊戲框架，而不重新整理整個頁面。\n\n快速重新整理未必總能成功，若出現網路錯誤，請使用完全重新整理。</string>
+    <string name="refresh_full_msg">重新載入整個頁面。這是最可靠的重新整理方式，但比快速重新整理耗時更長。</string>
     <string name="mode_landscape">僅限橫向</string>
     <string name="mode_adjustment">自動調整佈局</string>
     <string name="mode_silent">以靜音模式啟動</string>
@@ -72,6 +74,8 @@
     <string name="setting_cursor_mode_mouse">使用滑鼠</string>
 
     <string name="menu_tooltip_refresh">重新整理頁面</string>
+    <string name="menu_quick_refresh">快速重新整理</string>
+    <string name="menu_full_refresh">完全重新整理</string>
     <string name="menu_tooltip_mute">靜音</string>
     <string name="menu_tooltip_camera">螢幕截圖</string>
     <string name="menu_tooltip_lock">自動旋轉鎖定</string>

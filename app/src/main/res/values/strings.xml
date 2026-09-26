@@ -16,6 +16,8 @@
     <string name="thirdpartyconnector_msg">In the case of non-official web proxy-based connectors (like OOI), the game resources may be different from the original ones, depending on their policy. Basically, GotoBrowser does not inference the policy of each connector. If you do not want to display unofficial resources with GotoBrowser, please clear the cache and play KanColle through DMM Direct.</string>
     <string name="backpress_msg">Press back again to exit</string>
     <string name="refresh_msg">Do you really want to refresh?</string>
+    <string name="refresh_quick_msg">Reload only the game frame instead of the full web page.\n\nQuick refresh may not always succeed. If a network error occurs, please use Full Refresh.</string>
+    <string name="refresh_full_msg">Reload the full web page. This is the most reliable way to refresh, but it takes longer than Quick Refresh.</string>
     <string name="mode_landscape">Only Landscape</string>
     <string name="mode_adjustment">Auto Layout Adjustment</string>
     <string name="mode_silent">Start with Audio OFF</string>
@@ -86,6 +88,8 @@
     <string name="setting_cursor_mode_mouse">Mouse or Trackpad</string>
 
     <string name="menu_tooltip_refresh">Refresh</string>
+    <string name="menu_quick_refresh">Quick Refresh</string>
+    <string name="menu_full_refresh">Full Refresh</string>
     <string name="menu_tooltip_mute">Mute Audio</string>
     <string name="menu_tooltip_camera">Screenshot Mode</string>
     <string name="menu_tooltip_lock">Auto-Rotate Lock</string>

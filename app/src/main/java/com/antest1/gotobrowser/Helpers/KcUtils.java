@@ -66,6 +66,7 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+import okhttp3.Cache;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -75,6 +76,7 @@ import retrofit2.Callback;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
+import static com.antest1.gotobrowser.Constants.CACHE_SIZE_BYTES;
 import static com.antest1.gotobrowser.Constants.KCANOTIFY_PACKAGE_NAME;
 import static com.antest1.gotobrowser.Constants.PREF_USE_EXTCACHE;
 import static android.net.http.SslError.SSL_DATE_INVALID;
@@ -319,7 +321,7 @@ public class KcUtils {
 
     public static Retrofit getRetrofitAdapter(Context context, String baseUrl) {
         OkHttpClient.Builder builder = new OkHttpClient().newBuilder();
-        //builder.cache(new Cache(context.getCacheDir(), CACHE_SIZE_BYTES));
+        builder.cache(new Cache(context.getCacheDir(), CACHE_SIZE_BYTES));
 
         OkHttpClient client = builder.build();
         return new Retrofit.Builder()
