@@ -1,8 +1,11 @@
 package com.antest1.gotobrowser.Activity
 
+import android.content.Context
 import android.content.pm.ActivityInfo
 import android.graphics.Rect
+import android.hardware.display.DisplayManager
 import android.os.Build
+import android.view.Display
 import android.view.Surface
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -10,6 +13,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.antest1.gotobrowser.Constants.*
+import com.antest1.gotobrowser.R
+import kotlin.math.abs
 
 class DisplayController(
     private val activity: BrowserActivity,
@@ -74,6 +79,34 @@ class DisplayController(
         mContentView?.isFocusableInTouchMode = false
         mContentView?.isFocusable = false
         mContentView?.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+    }
+
+    fun applyFpsLimit() {
+        val prefKey = activity.getString(R.string.preference_key)
+        val sharedPref = activity.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+        val fpsLimitStr = sharedPref.getString(PREF_FPS_LIMIT, DEFAULT_FPS_LIMIT) ?: DEFAULT_FPS_LIMIT
+        val targetFps = if (fpsLimitStr == DEFAULT_FPS_LIMIT) 0f else (fpsLimitStr.toFloatOrNull() ?: 0f)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val window = activity.window
+            if (targetFps > 0f) {
+                val displayManager = activity.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+                val display = displayManager?.getDisplay(Display.DEFAULT_DISPLAY)
+                val modes = display?.supportedModes
+                val targetMode = modes?.firstOrNull { mode ->
+                    abs(mode.refreshRate - targetFps) < 1.0f
+                }
+                if (targetMode != null) {
+                    val params = window.attributes
+                    params.preferredDisplayModeId = targetMode.modeId
+                    window.attributes = params
+                }
+            } else {
+                val params = window.attributes
+                params.preferredDisplayModeId = 0
+                window.attributes = params
+            }
+        }
     }
 
     fun hideSystemBars() {

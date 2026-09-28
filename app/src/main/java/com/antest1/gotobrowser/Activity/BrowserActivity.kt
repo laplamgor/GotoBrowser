@@ -81,6 +81,7 @@ import com.antest1.gotobrowser.Constants.PREF_CONNECTOR
 import com.antest1.gotobrowser.Constants.PREF_DEVTOOLS_DEBUG
 import com.antest1.gotobrowser.Constants.PREF_DISABLE_REFRESH_DIALOG
 import com.antest1.gotobrowser.Constants.PREF_DOWNLOAD_RETRY
+import com.antest1.gotobrowser.Constants.PREF_FPS_LIMIT
 import com.antest1.gotobrowser.Constants.PREF_KEYBOARD
 import com.antest1.gotobrowser.Constants.PREF_LANDSCAPE
 import com.antest1.gotobrowser.Constants.PREF_MULTIWIN_MARGIN
@@ -137,7 +138,8 @@ class BrowserActivity : ComponentActivity() {
         PREF_PIP_MODE,
         PREF_PANELSTART,
         PREF_DISABLE_REFRESH_DIALOG,
-        PREF_DEVTOOLS_DEBUG
+        PREF_DEVTOOLS_DEBUG,
+        PREF_FPS_LIMIT
     )
 
     @SuppressLint("SourceLockedOrientationActivity", "ClickableViewAccessibility")
@@ -211,6 +213,7 @@ class BrowserActivity : ComponentActivity() {
                             displayController = DisplayController(this@BrowserActivity, it) { multiwinMarginDp.value = it }
                             pipController.setupSmoothPipAnimation()
                             displayController.applyKeyboardSetting()
+                            displayController.applyFpsLimit()
                         },
                         intent = intent,
                         activity = this@BrowserActivity,
@@ -350,6 +353,7 @@ class BrowserActivity : ComponentActivity() {
             PREF_KEYBOARD -> displayController.applyKeyboardSetting()
             PREF_DEVTOOLS_DEBUG -> WebViewManager.setWebViewDebugging(viewModel.sharedPref.getBoolean(PREF_DEVTOOLS_DEBUG, false))
             PREF_DISABLE_REFRESH_DIALOG -> viewModel.setNoRefreshPopupMode(viewModel.sharedPref.getBoolean(PREF_DISABLE_REFRESH_DIALOG, false))
+            PREF_FPS_LIMIT -> displayController.applyFpsLimit()
         }
     }
 
