@@ -212,7 +212,7 @@ public class KcUtils {
     public static byte[] getBytesFromInputStream(InputStream in) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         int nRead;
-        byte[] data = new byte[1024];
+        byte[] data = new byte[16384];
         while ((nRead = in.read(data, 0, data.length)) != -1) {
             buffer.write(data, 0, nRead);
         }
@@ -245,7 +245,7 @@ public class KcUtils {
         InputStream in = new BufferedInputStream(new URL(url).openStream());
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         int nRead;
-        byte[] data = new byte[1024];
+        byte[] data = new byte[16384];
         while ((nRead = in.read(data, 0, data.length)) != -1) {
             buffer.write(data, 0, nRead);
         }
@@ -278,7 +278,7 @@ public class KcUtils {
                 ResponseBody body = response.body();
                 if (body != null) {
                     InputStream in = body.byteStream();
-                    byte[] buffer = new byte[8 * 1024];
+                    byte[] buffer = new byte[16384];
                     int bytes;
                     if (file != null) {
                         file.getParentFile().mkdirs();
@@ -629,7 +629,7 @@ public class KcUtils {
 
     public static void copyFileUsingStream(File source, File dest) throws IOException {
         try (InputStream is = new FileInputStream(source); OutputStream os = new FileOutputStream(dest)) {
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[16384];
             int length;
             while ((length = is.read(buffer)) > 0) {
                 os.write(buffer, 0, length);

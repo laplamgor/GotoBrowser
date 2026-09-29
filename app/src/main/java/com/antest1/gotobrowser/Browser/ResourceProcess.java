@@ -610,7 +610,7 @@ public class ResourceProcess {
         try {
             InputStream inputStream = context.getAssets().open("touch_event_patch.js");
             ByteArrayOutputStream result = new ByteArrayOutputStream();
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[16384];
             for (int length; (length = inputStream.read(buffer)) != -1;) {
                 result.write(buffer, 0, length);
             }
