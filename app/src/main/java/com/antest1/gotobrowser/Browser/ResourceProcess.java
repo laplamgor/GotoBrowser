@@ -260,7 +260,7 @@ public class ResourceProcess {
             if (info.filename != null) {
                 info.outputPath = info.outputDir.concat(info.filename);
             }
-            info.fullUrl = String.format(Locale.US, "%s://%s%s", scheme, info.host, info.path);
+            info.fullUrl = scheme + "://" + info.host + info.path;
             String version = source.getQueryParameter("version");
             if (version != null) {
                 info.version = version;
@@ -268,7 +268,7 @@ public class ResourceProcess {
             if (!info.version.isEmpty()) {
                 info.fullUrl = info.fullUrl + "?version=" + info.version;
             }
-            info.key = String.format(Locale.US, "|%s|%s", info.path, info.version);
+            info.key = "|" + info.path + "|" + info.version;
         }
         return info;
     }
@@ -300,6 +300,15 @@ public class ResourceProcess {
         }
     }
 
+    private static final ThreadLocal<SimpleDateFormat> HTTP_DATE_FORMATTER = new ThreadLocal<>() {
+        @Override
+        protected SimpleDateFormat initialValue() {
+            SimpleDateFormat formatter = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
+            formatter.setTimeZone(TimeZone.getTimeZone("GMT"));
+            return formatter;
+        }
+    };
+
     private int checkCacheExpired(String expiryDate) {
         Date parsedExpiryDate = parseHttpDate(expiryDate);
         if (parsedExpiryDate == null) return -1;
@@ -308,9 +317,7 @@ public class ResourceProcess {
 
     public static Date parseHttpDate(String dateString) {
         try {
-            SimpleDateFormat formatter = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
-            formatter.setTimeZone(TimeZone.getTimeZone("GMT"));
-            return formatter.parse(dateString);
+            return HTTP_DATE_FORMATTER.get().parse(dateString);
         } catch (ParseException | NullPointerException e) {
             return null;
         }
@@ -322,8 +329,7 @@ public class ResourceProcess {
             Date now = new Date();
             long expiryMillis = now.getTime() + (maxAgeSeconds * 1000);
             Date expiryDate = new Date(expiryMillis);
-            SimpleDateFormat sdf = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
-            return sdf.format(expiryDate);
+            return HTTP_DATE_FORMATTER.get().format(expiryDate);
         } else {
             return versionTable.getDefaultValue();
         }
@@ -614,7 +620,7 @@ public class ResourceProcess {
             for (int length; (length = inputStream.read(buffer)) != -1;) {
                 result.write(buffer, 0, length);
             }
-            return result.toString(StandardCharsets.UTF_8);
+            return result.toString("UTF-8");
         } catch (IOException e) { return null; }
     }
 
