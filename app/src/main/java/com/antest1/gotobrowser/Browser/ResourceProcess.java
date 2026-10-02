@@ -459,7 +459,33 @@ public class ResourceProcess {
         }
 
         if (url.contains("kcs2/js/main.js")) {
-            byte[] byteArray = KcUtils.downloadDataFromURL(url);
+            String update_key = requestInfo.key;
+            String resource_url = requestInfo.fullUrl;
+            String out_file_path = requestInfo.outputPath;
+            File file = new File(out_file_path);
+
+            String prevLastModified = versionTable.getVersionValue(update_key);
+            if (!file.exists() || file.length() == 0 || prevLastModified.equals(versionTable.getDefaultValue())) {
+                prevLastModified = null;
+            }
+
+            // main.js is core game code; bypass max-age caching and issue If-Modified-Since revalidation.
+            JsonObject result = downloadResource(resourceClient, resource_url, file, prevLastModified);
+            if (result.has("response_code")) {
+                int response_code = result.get("response_code").getAsInt();
+                if (response_code == 200) {
+                    String last_modified = result.has("last_modified") ? result.get("last_modified").getAsString() : null;
+                    versionTable.putCacheAndVersion(update_key, last_modified, versionTable.getDefaultValue());
+                }
+            }
+
+            byte[] byteArray;
+            if (file.exists() && file.length() > 0) {
+                byteArray = KcUtils.getBytesFromInputStream(new FileInputStream(file));
+            } else {
+                byteArray = KcUtils.downloadDataFromURL(url);
+            }
+
             String main_js = ResourcePatcher.INSTANCE.patchMainScript(context, activity, new String(byteArray, StandardCharsets.UTF_8), silent_mode, isCursorTouchMode, getTouchEventPatchJs());
             InputStream is = new ByteArrayInputStream(main_js.getBytes());
             return new WebResourceResponse("application/javascript", "utf-8", is);
