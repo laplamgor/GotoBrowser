@@ -393,11 +393,19 @@ class BrowserActivity : ComponentActivity() {
         if (isInPictureInPictureMode) {
             toolbarVisible.value = false
         }
+        val rot = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display?.rotation ?: Surface.ROTATION_0
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.rotation
+        }
+        viewModel.k3dPatcher.setRotation(rot)
+        viewModel.k3dPatcher.resume()
     }
 
     override fun onPause() {
         super.onPause()
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInPictureInPictureModeState.value) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInPictureInPictureMode) {
             viewModel.k3dPatcher.pause()
         }
     }
