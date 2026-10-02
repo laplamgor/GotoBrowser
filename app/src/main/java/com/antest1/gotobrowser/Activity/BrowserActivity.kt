@@ -330,10 +330,19 @@ class BrowserActivity : ComponentActivity() {
     }
 
     private fun loadSubtitleData() {
+        // Loaded off the main thread:
+        // The result is only consumed later when a voice line plays.
         val subtitleLocale = viewModel.sharedPref.getString(PREF_SUBTITLE_LOCALE, "en") ?: "en"
-        val loaded = SubtitleProviderUtils.getSubtitleProvider(subtitleLocale)
-            .loadQuoteData(applicationContext, subtitleLocale)
-        viewModel.setSubtitleLoaded(loaded)
+        val appContext = applicationContext
+        Thread {
+            val loaded = SubtitleProviderUtils.getSubtitleProvider(subtitleLocale)
+                .loadQuoteData(appContext, subtitleLocale)
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) {
+                    viewModel.isSubtitleLoaded = loaded
+                }
+            }
+        }.start()
     }
 
     fun setStartedFlag() {
