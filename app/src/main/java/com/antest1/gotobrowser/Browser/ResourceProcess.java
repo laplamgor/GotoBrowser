@@ -19,7 +19,6 @@ import com.antest1.gotobrowser.R;
 import com.antest1.gotobrowser.Subtitle.SubtitleData;
 import com.antest1.gotobrowser.Subtitle.SubtitleProviderUtils;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.gson.JsonObject;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -57,6 +56,7 @@ import static com.antest1.gotobrowser.Constants.PREF_SILENT;
 import static com.antest1.gotobrowser.Constants.PREF_SUBTITLE_LOCALE;
 import static com.antest1.gotobrowser.Constants.REQUEST_BLOCK_RULES;
 import static com.antest1.gotobrowser.Constants.VERSION_TABLE_VERSION;
+import static com.antest1.gotobrowser.Helpers.KcUtils.DownloadResult;
 import static com.antest1.gotobrowser.Helpers.KcUtils.downloadResource;
 import static com.antest1.gotobrowser.Helpers.KcUtils.getEmptyStream;
 
@@ -354,18 +354,13 @@ public class ResourceProcess {
 
         boolean update_flag = false;
         if (prevLastModified == null || isCacheExpired == 1) {
-            JsonObject result = downloadResource(
-                    resourceClient, resource_url, file, prevLastModified);
-
-            if (result.has("response_code")) {
-                int response_code = result.get("response_code").getAsInt();
-                if (response_code == 200) {
-                    update_flag = true;
-                    String cache_expired = getCacheExpiredAt(result.get("cache_control").getAsString());
-                    String last_modified = result.get("last_modified").getAsString();
-                    versionTable.putCacheAndVersion(update_key, last_modified, cache_expired);
-                }
-            } else {
+            DownloadResult result = downloadResource(resourceClient, resource_url, file, prevLastModified);
+            if (result.responseCode == 200) {
+                update_flag = true;
+                String cache_expired = getCacheExpiredAt(result.cacheControl);
+                String last_modified = result.lastModified;
+                versionTable.putCacheAndVersion(update_key, last_modified, cache_expired);
+            } else if (result.responseCode == -1) {
                 return promptForRetry(requestInfo, resource_type);
             }
         }
@@ -470,13 +465,9 @@ public class ResourceProcess {
             }
 
             // main.js is core game code; bypass max-age caching and issue If-Modified-Since revalidation.
-            JsonObject result = downloadResource(resourceClient, resource_url, file, prevLastModified);
-            if (result.has("response_code")) {
-                int response_code = result.get("response_code").getAsInt();
-                if (response_code == 200) {
-                    String last_modified = result.has("last_modified") ? result.get("last_modified").getAsString() : null;
-                    versionTable.putCacheAndVersion(update_key, last_modified, versionTable.getDefaultValue());
-                }
+            DownloadResult result = downloadResource(resourceClient, resource_url, file, prevLastModified);
+            if (result.responseCode == 200) {
+                versionTable.putCacheAndVersion(update_key, result.lastModified, versionTable.getDefaultValue());
             }
 
             byte[] byteArray;
@@ -532,14 +523,11 @@ public class ResourceProcess {
         }
 
         if (prevLastModified == null || isCacheExpired == 1) {
-            JsonObject result = downloadResource(resourceClient, resource_url, file, prevLastModified);
-            if (result.has("response_code")) {
-                int response_code = result.get("response_code").getAsInt();
-                if (response_code == 200) {
-                    versionTable.putCacheAndVersion(update_key, result.get("last_modified").getAsString(),
-                            getCacheExpiredAt(result.get("cache_control").getAsString()));
-                }
-            } else {
+            DownloadResult result = downloadResource(resourceClient, resource_url, file, prevLastModified);
+            if (result.responseCode == 200) {
+                versionTable.putCacheAndVersion(update_key, result.lastModified,
+                        getCacheExpiredAt(result.cacheControl));
+            } else if (result.responseCode == -1) {
                 return promptForRetry(requestInfo, resource_type);
             }
         }
@@ -576,10 +564,10 @@ public class ResourceProcess {
         }
 
         if (prevLastModified == null || isCacheExpired == 1) {
-            JsonObject result = downloadResource(resourceClient, resource_url, file, prevLastModified);
-            if (result.has("response_code") && result.get("response_code").getAsInt() == 200) {
-                versionTable.putCacheAndVersion(update_key, result.get("last_modified").getAsString(),
-                        getCacheExpiredAt(result.get("cache_control").getAsString()));
+            DownloadResult result = downloadResource(resourceClient, resource_url, file, prevLastModified);
+            if (result.responseCode == 200) {
+                versionTable.putCacheAndVersion(update_key, result.lastModified,
+                        getCacheExpiredAt(result.cacheControl));
             }
         }
 
@@ -616,8 +604,8 @@ public class ResourceProcess {
     }
 
     private boolean getIpBannedStatus(String url) {
-        JsonObject result = downloadResource(resourceClient, url, null);
-        return result.has("response_code") && result.get("response_code").getAsInt() == 403;
+        DownloadResult result = downloadResource(resourceClient, url, null);
+        return result.responseCode == 403;
     }
 
     private WebResourceResponse getInjectedKcaCdaJs() {

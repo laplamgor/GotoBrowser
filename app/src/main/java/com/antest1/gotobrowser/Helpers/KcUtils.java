@@ -254,34 +254,43 @@ public class KcUtils {
         return buffer.toByteArray();
     }
 
-    public static JsonObject downloadResource(OkHttpClient client, String fullpath, File file) {
+    public static class DownloadResult {
+        public int responseCode = -1;
+        public String lastModified;
+        public String cacheControl;
+        public String error;
+    }
+
+    public static DownloadResult downloadResource(OkHttpClient client, String fullpath, File file) {
         return downloadResource(client, fullpath, file, null);
     }
 
-    public static JsonObject downloadResource(OkHttpClient client, String fullpath, File file, String if_modified_since) {
+    public static DownloadResult downloadResource(OkHttpClient client, String fullpath, File file, String if_modified_since) {
         Request.Builder builder = new Request.Builder()
                 .header("User-Agent", ResourceProcess.getUserAgent())
                 .url(fullpath);
         if (if_modified_since != null) {
             builder = builder.addHeader("If-Modified-Since", if_modified_since);
         }
-        JsonObject downloadResult = new JsonObject();
+        DownloadResult downloadResult = new DownloadResult();
 
         Log.e("GOTO", "download " + fullpath + " " + if_modified_since);
         Request request = builder.build();
         try {
             Response response = client.newCall(request).execute();
+            downloadResult.responseCode = response.code();
+            downloadResult.lastModified = response.header("Last-Modified", null);
+            downloadResult.cacheControl = response.header("Cache-Control", null);
+
             if (response.code() == 200) {
                 Log.e("GOTO", "200 OK " + fullpath);
-                String last_modified = response.header("Last-Modified", null);
-                String cache_control = response.header("Cache-Control", null);
                 ResponseBody body = response.body();
                 if (body != null) {
                     InputStream in = body.byteStream();
                     byte[] buffer = new byte[16384];
                     int bytes;
                     if (file != null) {
-                        file.getParentFile().mkdirs();
+                        if (file.getParentFile() != null) file.getParentFile().mkdirs();
                         FileOutputStream fos = new FileOutputStream(file);
                         while ((bytes = in.read(buffer)) != -1) {
                             fos.write(buffer, 0, bytes);
@@ -290,18 +299,15 @@ public class KcUtils {
                     }
                     body.close();
                 }
-                downloadResult.addProperty("last_modified", last_modified);
-                downloadResult.addProperty("cache_control", cache_control);
             } else if (response.code() == 304) {
                 Log.e("GOTO", "304 Not Modified " + fullpath);
             } else if (response.code() == 403) {
-                Log.e("GOTO", "403 Forbidden" + fullpath);
+                Log.e("GOTO", "403 Forbidden " + fullpath);
             }
-            downloadResult.addProperty("response_code", response.code());
         } catch (Exception e) {
             Log.e("GOTO-E", getStringFromException(e));
             KcUtils.reportException(e);
-            downloadResult.addProperty("error", getStringFromException(e));
+            downloadResult.error = getStringFromException(e);
         }
         return downloadResult;
     }
