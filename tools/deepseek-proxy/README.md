@@ -14,7 +14,7 @@ not accept. DeepSeek's schema is an *internally tagged enum*: a message's
 `content` must be **either** a plain string **or** an array of blocks whose
 types are `text`/`image_url`. DeepSeek also validates tool schemas strictly
 (every function's `parameters` must be object-rooted JSON Schema). This tiny
-PHP script does five things:
+PHP script does six things:
 
 1. rewrites `developer` -> `system` (merging multiple leading system messages
    into one, since DeepSeek accepts only a single system message);
@@ -30,7 +30,10 @@ PHP script does five things:
 4. normalises every tool/function parameter schema so its root is a JSON
    **object** (`{"type":"object","properties":{...}}`), fixing the
    `Invalid schema for function '...': [] is not of type "object"` 400 error.
-5. can supply its own API key (`FALLBACK_API_KEY`) when the panel only sends a
+5. remaps client model names onto models DeepSeek actually serves. The panel
+   hardcodes an OpenAI model for some internal calls (its "sub-agent"), which
+   DeepSeek answers with a 404. See `MODEL_ALIASES` / `MODEL_FALLBACK`.
+6. can supply its own API key (`FALLBACK_API_KEY`) when the panel only sends a
    placeholder key to a custom base URL.
 
 Everything else is forwarded unchanged to `https://api.deepseek.com`.
@@ -174,6 +177,9 @@ that occurs when string and array parts are mixed within one message.
 | `TRANSLATE_RESPONSES`| Translate `POST /responses` into `chat/completions` (default true).     |
 | `CHAT_COMPLETIONS_PATH`| Upstream path used for the translation (default `/chat/completions`).|
 | `DEFAULT_MODEL`     | Model used if a Responses request omits `model` (default `deepseek-chat`).|
+| `DEEPSEEK_MODELS`   | Models DeepSeek serves; matching names pass through unchanged.            |
+| `MODEL_ALIASES`     | Client-model -> DeepSeek-model map (case-insensitive), e.g. `gpt-4o-mini`.|
+| `MODEL_FALLBACK`    | If true, unknown model names fall back to `DEFAULT_MODEL` (default true).  |
 | `DEBUG_LOG`         | Logs role rewrites to the php error log. Turn off when done.             |
 | `DEBUG_CAPTURE`     | Writes a key-free summary of the last request next to the script.        |
 | `DEBUG_SHOW_CAPTURE`| Exposes that summary at `?__debug`. Turn off when done.                  |
@@ -386,6 +392,64 @@ every entry. If you see `parameters_type: "(none)"` or `"array"`, the coercion
 did not run — make sure the request path matched (`translated_responses: true`
 for `/responses`, or a `chat/completions` path) and that `tools` is present in
 the body.
+
+### Model 404: "The sub-agent call failed (model 404)"
+
+The panel uses a **sub-agent** for some tasks (and other internal calls) that
+hardcodes an **OpenAI model name** (e.g. `gpt-4o-mini`). DeepSeek does not serve
+those names, so the request is answered with a 404 and the panel reports:
+
+```
+The sub-agent call failed (model 404). I'll do the conversion myself...
+```
+
+The main agent usually recovers by doing the work itself, but the 404 recurs
+whenever the panel makes an internal call with the hardcoded model.
+
+The proxy now remaps the model **before** forwarding:
+
+1. `resolve_model()` passes through any model in `DEEPSEEK_MODELS`
+   (`deepseek-chat`, `deepseek-reasoner`, `deepseek-coder`) case-insensitively;
+2. otherwise applies an explicit entry from `MODEL_ALIASES`;
+3. otherwise, when `MODEL_FALLBACK = true`, falls back to `DEFAULT_MODEL`.
+
+To pin specific names, add aliases (keys are case-insensitive):
+
+```php
+const MODEL_ALIASES = [
+    'gpt-4o'      => 'deepseek-chat',
+    'gpt-4o-mini' => 'deepseek-chat',
+    'gpt-4.1'     => 'deepseek-chat',
+];
+```
+
+With the default `MODEL_FALLBACK = true` you usually do not need aliases at all:
+any unknown model name becomes `DEFAULT_MODEL`. Set `MODEL_FALLBACK = false` if
+you would rather see the raw upstream 404 for unmapped names.
+
+Verify with `?__debug` — the capture records both the requested and sent model,
+plus a short error preview when upstream returns 4xx/5xx:
+
+```json
+"model_summary": { "requested": "gpt-4o-mini", "sent": "deepseek-chat" },
+"upstream_status": 200,
+"error_preview": null
+```
+
+- `requested` = what the panel asked for, `sent` = what went to DeepSeek. If
+  `requested` differs from `sent`, the remap worked.
+- If `upstream_status` is 404, read `error_preview` — DeepSeek includes the
+  offending model name, e.g.
+  `{"error":{"message":"The model 'xyz' does not exist ..."}}`. Add that name
+  to `DEEPSEEK_MODELS` (if valid) or `MODEL_ALIASES`.
+
+You can also confirm what DeepSeek actually offers:
+
+```bash
+curl -sS https://kantai3d.com/deepseek/models -H "Authorization: Bearer dummy"
+```
+
+Only the `id` values it lists will work without remapping.
 
 ### 404: `null`
 

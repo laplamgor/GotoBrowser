@@ -20,7 +20,10 @@
  *   3. normalises message content and tool parameter schemas to the shapes
  *      DeepSeek accepts (plain string / text|image_url blocks; object-rooted
  *      function parameters), see normalise_tools();
- *   4. can supply its own API key (FALLBACK_API_KEY) when the client only sends
+ *   4. remaps client model names onto DeepSeek models (the panel's sub-agent
+ *      hardcodes an OpenAI model such as gpt-4o-mini, which would 404), see
+ *      MODEL_ALIASES / MODEL_FALLBACK;
+ *   5. can supply its own API key (FALLBACK_API_KEY) when the client only sends
  *      a placeholder, since some IDE panels do not forward the real key to a
  *      custom base URL.
  * Everything else is forwarded untouched to https://api.deepseek.com.
@@ -98,6 +101,26 @@ const CHAT_COMPLETIONS_PATH = '/chat/completions';
 
 // Default model used if the Responses request does not specify one.
 const DEFAULT_MODEL = 'deepseek-chat';
+
+// Models DeepSeek actually serves. Anything not in this list is remapped (see
+// MODEL_FALLBACK) so a client that hardcodes an OpenAI model name (e.g. its
+// "sub-agent" using gpt-4o-mini) does not get a 404 from DeepSeek.
+const DEEPSEEK_MODELS = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-coder'];
+
+// Explicit client-model -> DeepSeek-model aliases. Keys are matched
+// case-insensitively and by exact name. Example:
+//   'gpt-4o'      => 'deepseek-chat',
+//   'gpt-4o-mini' => 'deepseek-chat',
+//   'gpt-4.1'     => 'deepseek-chat',
+const MODEL_ALIASES = [
+    // 'gpt-4o'      => 'deepseek-chat',
+    // 'gpt-4o-mini' => 'deepseek-chat',
+];
+
+// When a request's model is neither a DeepSeek model nor in MODEL_ALIASES, fall
+// back to DEFAULT_MODEL instead of forwarding an unknown name (which DeepSeek
+// answers with a 404). Set false to forward unknown model names verbatim.
+const MODEL_FALLBACK = true;
 
 // Roles that DeepSeek understands and that should never be touched.
 const VALID_ROLES = ['system', 'user', 'assistant', 'tool', 'latest_reminder'];
@@ -354,6 +377,64 @@ function normalise_tools(array &$payload): bool {
 }
 
 /**
+ * Map a client-supplied model name onto a model DeepSeek actually serves.
+ *
+ * The Android Studio panel hardcodes OpenAI model names for some internal
+ * calls (e.g. its "sub-agent" uses a gpt-4o* model). Forwarded verbatim,
+ * DeepSeek answers those with a 404 ("The model ... does not exist"). We:
+ *   1. pass through any model DeepSeek natively serves;
+ *   2. apply an explicit alias from MODEL_ALIASES (case-insensitive);
+ *   3. otherwise fall back to DEFAULT_MODEL when MODEL_FALLBACK is on.
+ *
+ * Returns the (possibly rewritten) model, or null when the input is not a
+ * usable string.
+ */
+function resolve_model($model): ?string {
+    if (!is_string($model) || trim($model) === '') {
+        return DEFAULT_MODEL;
+    }
+
+    $trimmed = trim($model);
+
+    // 1. Already a model DeepSeek serves (case-insensitive).
+    foreach (DEEPSEEK_MODELS as $known) {
+        if (strcasecmp($trimmed, $known) === 0) {
+            return $known;
+        }
+    }
+
+    // 2. Explicit alias.
+    foreach (MODEL_ALIASES as $from => $to) {
+        if (strcasecmp($trimmed, $from) === 0) {
+            return $to;
+        }
+    }
+
+    // 3. Unknown: fall back so the caller does not 404.
+    if (MODEL_FALLBACK) {
+        return DEFAULT_MODEL;
+    }
+
+    return $trimmed;
+}
+
+/**
+ * Rewrite the request's `model` to a DeepSeek-served name. Returns true if it
+ * changed. Works on any payload that has a top-level "model" key.
+ */
+function normalise_model(array &$payload): bool {
+    if (!array_key_exists('model', $payload)) {
+        return false;
+    }
+    $resolved = resolve_model($payload['model']);
+    if ($resolved !== null && $resolved !== $payload['model']) {
+        $payload['model'] = $resolved;
+        return true;
+    }
+    return false;
+}
+
+/**
  * Return true when a path looks like a chat/completions request whose body
  * should be rewritten. Other endpoints (models, embeddings, ...) are proxied
  * untouched.
@@ -574,6 +655,9 @@ function translate_responses_request(array $req): array {
     $out = [];
 
     $out['model'] = $req['model'] ?? DEFAULT_MODEL;
+    // Map OpenAI/unknown model names onto a model DeepSeek serves (the panel's
+    // sub-agent hardcodes e.g. gpt-4o-mini, which would 404 upstream).
+    normalise_model($out);
 
     // `instructions` becomes the system message; `input` becomes the messages.
     $messages = [];
@@ -690,6 +774,7 @@ $rolesBefore = null;
 $rolesAfter = null;
 $messagesSummary = null;
 $toolsSummary = null;
+$modelSummary = null;
 
 if ($rawBody !== '' && $translatedResponses) {
     // Translate a Responses API body into a chat/completions body.
@@ -704,6 +789,10 @@ if ($rawBody !== '' && $translatedResponses) {
         $rewroteRoles = true;
         $messagesSummary = summarise_messages($translated['messages'] ?? []);
         $toolsSummary = summarise_tools($translated['tools'] ?? null);
+        $modelSummary = [
+            'requested' => $json['model'] ?? null,
+            'sent'      => $translated['model'] ?? null,
+        ];
         log_debug('responses body translated; roles ' . implode(',', $rolesBefore));
         $body = json_encode($translated, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     } else {
@@ -713,6 +802,7 @@ if ($rawBody !== '' && $translatedResponses) {
     $json = json_decode($rawBody, true);
     if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
         $touched = false;
+        $requestedModel = $json['model'] ?? null;
         if (isset($json['messages']) && is_array($json['messages'])) {
             $rolesBefore = array_map(
                 fn($m) => is_array($m) && isset($m['role']) ? $m['role'] : '?',
@@ -733,8 +823,20 @@ if ($rawBody !== '' && $translatedResponses) {
             log_debug('normalised tools parameter schemas');
             $touched = true;
         }
+        // Map the model onto a name DeepSeek serves (avoids 404 on the panel's
+        // hardcoded OpenAI sub-agent model).
+        if (normalise_model($json)) {
+            log_debug('model remapped to ' . $json['model']);
+            $touched = true;
+        }
         if (isset($json['tools'])) {
             $toolsSummary = summarise_tools(is_array($json['tools']) ? $json['tools'] : null);
+        }
+        if (array_key_exists('model', $json)) {
+            $modelSummary = [
+                'requested' => $requestedModel,
+                'sent'      => $json['model'],
+            ];
         }
         if ($touched) {
             $body = json_encode($json, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -891,6 +993,7 @@ capture_summary([
     'roles_after'          => $rolesAfter,
     'messages_summary'     => $messagesSummary,
     'tools_summary'        => $toolsSummary,
+    'model_summary'        => $modelSummary,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -1020,6 +1123,13 @@ if ($bodyBuf !== '') {
 
 log_debug("upstream responded $upstreamStatus (body " . strlen($bodyBuf) . " bytes)");
 
+// Short, key-free preview of the upstream body when it looks like an error, so
+// a 404/4xx (e.g. an unmapped model) is diagnosable at ?__debug.
+$errorPreview = null;
+if ($upstreamStatus >= 400) {
+    $errorPreview = mb_substr($bodyBuf, 0, 300);
+}
+
 capture_summary([
     'phase'                => 'result',
     'method'               => $method,
@@ -1035,4 +1145,6 @@ capture_summary([
     'rewrote_roles'        => $rewroteRoles,
     'roles_before'         => $rolesBefore,
     'roles_after'          => $rolesAfter,
+    'model_summary'        => $modelSummary,
+    'error_preview'        => $errorPreview,
 ]);
