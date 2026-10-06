@@ -387,6 +387,54 @@ did not run — make sure the request path matched (`translated_responses: true`
 for `/responses`, or a `chat/completions` path) and that `tools` is present in
 the body.
 
+### 404: `null`
+
+`404: null` means the upstream (DeepSeek) returned **404 with an empty body** —
+i.e. the panel requested a path DeepSeek does not expose. Unlike a 401/422 this
+is a *routing* problem: the request reached DeepSeek fine, but at the wrong
+path.
+
+Common causes:
+
+- the panel pinged the **base URL itself** (`GET /deepseek/`), which used to be
+  forwarded as `https://api.deepseek.com/` → 404. The proxy now answers a bare
+  root probe with `/models` (GET) / `/chat/completions` (POST);
+- the base URL in the panel ends with `/v1` **and** the panel appends `/v1`,
+  producing `/v1/v1/...`. The proxy now collapses repeated `/v1` segments;
+- a duplicated or trailing slash (`/deepseek//models`). Repeated slashes are now
+  collapsed.
+
+Diagnose with `?__debug` — the response now shows both the raw and normalised
+paths:
+
+```json
+{
+  "request_uri": "/deepseek/v1/models",
+  "original_path": "/models",
+  "computed_path": "/models",
+  "upstream_would": "https://api.deepseek.com/models",
+  "last_request": { "upstream_status": 200, ... }
+}
+```
+
+- `original_path` is after the subfolder strip; `computed_path` is what is sent
+  upstream. If they differ, normalisation kicked in.
+- In `last_request` check `upstream_url` and `upstream_status`. If
+  `upstream_url` is `https://api.deepseek.com/` (bare), the panel hit the base
+  URL — make sure it is configured as `https://kantai3d.com/deepseek` (no
+  trailing `/v1`), and retry.
+- If `last_request` still shows an old successful call, the failing request did
+  not reach the proxy at all — re-check nginx routing / the base URL.
+
+Verify directly:
+
+```bash
+# Should be 200 + model list
+curl -i -sS https://kantai3d.com/deepseek/models -H "Authorization: Bearer dummy"
+# Also 200 (repeated /v1 collapsed)
+curl -i -sS https://kantai3d.com/deepseek/v1/v1/models -H "Authorization: Bearer dummy"
+```
+
 ### Headers rendered as text in the browser
 
 Hitting the endpoint with a plain browser GET (no auth, wrong method) shows the
@@ -427,16 +475,28 @@ the correct status code and a JSON `Content-Type` even for empty error bodies.
 
 ## Path mapping
 
-`SUBFOLDER_BASE = '/deepseek'` is stripped, then a leading `/v1` is stripped,
-so:
+Paths are resolved defensively by `resolve_upstream_path()`:
+
+- the subfolder (`SUBFOLDER_BASE = '/deepseek'`) is stripped **only at a path
+  boundary**, so `/deepseekX/...` is not mangled;
+- `/v1` segments are stripped, **including repeated ones** (`/v1/v1/models`);
+- repeated slashes are collapsed;
+- known endpoints are matched by the **end** of the path, so any prefix form
+  works;
+- a bare base-URL probe (`/`) is answered with `/models` (GET) or
+  `/chat/completions` (POST) instead of being forwarded into a 404;
+- `/responses` is translated to `/chat/completions`.
 
 | Client request                                          | Upstream                                    |
 |---------------------------------------------------------|---------------------------------------------|
 | `https://kantai3d.com/deepseek/v1/chat/completions`     | `https://api.deepseek.com/chat/completions` |
 | `https://kantai3d.com/deepseek/chat/completions`        | `https://api.deepseek.com/chat/completions` |
+| `https://kantai3d.com/deepseek/v1/v1/chat/completions`  | `https://api.deepseek.com/chat/completions` |
 | `https://kantai3d.com/deepseek/responses`               | `https://api.deepseek.com/chat/completions` (translated) |
 | `https://kantai3d.com/deepseek/v1/models`               | `https://api.deepseek.com/models`           |
 | `https://kantai3d.com/deepseek/models`                  | `https://api.deepseek.com/models`           |
+| `https://kantai3d.com/deepseek/` (GET)                  | `https://api.deepseek.com/models`           |
+| `https://kantai3d.com/deepseek/` (POST)                 | `https://api.deepseek.com/chat/completions` |
 
 ## Caveats
 

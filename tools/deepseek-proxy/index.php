@@ -370,6 +370,57 @@ function is_responses_path(string $path): bool {
 }
 
 /**
+ * Resolve the client-supplied path into the upstream (DeepSeek) path.
+ *
+ * Clients vary: some send /v1/..., some /...; some probe /models, some
+ * /v1/models; some duplicate the base (/v1/v1/...). Unknown paths used to be
+ * forwarded verbatim, which produced a bare `404: null` from DeepSeek when the
+ * panel asked for something the API does not expose. We normalise defensively
+ * and operate on the end of the path (the API endpoint) rather than assuming a
+ * fixed prefix structure.
+ */
+function resolve_upstream_path(string $path, string $method): string {
+    // Collapse repeated slashes (/deepseek//models) then trim trailing slash
+    // (except the root itself).
+    $path = preg_replace('#/{2,}#', '/', $path);
+    if ($path === '') {
+        $path = '/';
+    }
+
+    // Remove ANY leading /v1 segments, however many times they repeat
+    // (/v1/models, /v1/v1/models, ...). DeepSeek's base is the API root.
+    while (str_starts_with($path, '/v1/')) {
+        $path = substr($path, 3); // drop "/v1", keep the next "/..."
+    }
+    if ($path === '/v1') {
+        $path = '/';
+    }
+
+    // Known endpoints, matched by the end of the path so any prefix form works.
+    if (str_ends_with($path, '/chat/completions')) {
+        return '/chat/completions';
+    }
+    if (str_ends_with($path, '/models')) {
+        return '/models';
+    }
+    if (str_ends_with($path, '/embeddings')) {
+        return '/embeddings';
+    }
+    if (str_ends_with($path, '/completions')) {
+        return '/completions';
+    }
+
+    // Bare root or an empty path: the panel frequently pings the base URL
+    // during setup. Answer with something meaningful instead of a 404.
+    if ($path === '/' || $path === '') {
+        return $method === 'POST' ? CHAT_COMPLETIONS_PATH : '/models';
+    }
+
+    // Unknown path: forward as-is (logged by the caller).
+    return $path;
+}
+
+/**
  * Convert a Responses-API content value into a DeepSeek chat content value.
  *
  * Returns either a plain string (when everything is text and PLAIN_CONTENT is
@@ -593,9 +644,14 @@ if (($qpos = strpos($requestUri, '?')) !== false) {
 }
 
 // Strip the subfolder prefix this proxy is mounted under, e.g. /deepseek.
+// Only strip at a path boundary, so /deepseekX/... is not mangled.
 $path = $rawPath;
-if (SUBFOLDER_BASE !== '' && str_starts_with($path, SUBFOLDER_BASE)) {
-    $path = substr($path, strlen(SUBFOLDER_BASE));
+if (SUBFOLDER_BASE !== '') {
+    if ($path === SUBFOLDER_BASE) {
+        $path = '/';
+    } elseif (str_starts_with($path, SUBFOLDER_BASE . '/')) {
+        $path = substr($path, strlen(SUBFOLDER_BASE));
+    }
 }
 // Ensure a leading slash (empty string, or "/v1/..." after stripping).
 if ($path === '' || $path === '/') {
@@ -604,16 +660,18 @@ if ($path === '' || $path === '/') {
     $path = '/' . $path;
 }
 
-// Strip a leading /v1 because UPSTREAM_BASE resolves paths to the API root.
-if (str_starts_with($path, '/v1/')) {
-    $path = substr($path, 3); // keep leading slash
-} elseif ($path === '/v1') {
-    $path = '/';
+// Normalise the path into the DeepSeek upstream path. This strips any /v1
+// segments (even repeated), matches known endpoints by suffix, and answers a
+// bare base-URL probe instead of forwarding it into a 404.
+$originalPath = $path;
+$path = resolve_upstream_path($path, $method);
+if ($path !== $originalPath) {
+    log_debug("path normalised: $originalPath -> $path");
 }
 
 // Translate the OpenAI Responses API path into DeepSeek's chat/completions.
 $translatedResponses = false;
-if (TRANSLATE_RESPONSES && is_responses_path($path)) {
+if (TRANSLATE_RESPONSES && is_responses_path($originalPath)) {
     $path = CHAT_COMPLETIONS_PATH;
     $translatedResponses = true;
 }
@@ -728,6 +786,7 @@ if (isset($_GET['__debug'])) {
         'ok'              => true,
         'method'          => $method,
         'request_uri'     => $requestUri,
+        'original_path'   => $originalPath ?? null,
         'computed_path'   => $path ?? null,
         'upstream_would'  => UPSTREAM_BASE . ($path ?? '') . ($query !== '' ? '?' . $query : ''),
         'subfolder_base'  => SUBFOLDER_BASE,
