@@ -12,7 +12,9 @@ The panel sends OpenAI-style requests that use the `developer` role, and
 Responses-API content blocks (`input_text`/`input_image`) that DeepSeek does
 not accept. DeepSeek's schema is an *internally tagged enum*: a message's
 `content` must be **either** a plain string **or** an array of blocks whose
-types are `text`/`image_url`. This tiny PHP script does four things:
+types are `text`/`image_url`. DeepSeek also validates tool schemas strictly
+(every function's `parameters` must be object-rooted JSON Schema). This tiny
+PHP script does five things:
 
 1. rewrites `developer` -> `system` (merging multiple leading system messages
    into one, since DeepSeek accepts only a single system message);
@@ -25,7 +27,10 @@ types are `text`/`image_url`. This tiny PHP script does four things:
    `image_url`. This avoids the
    `invalid type: string ..., expected ... ChatCompletionRequestContentBlock`
    422 error.
-4. can supply its own API key (`FALLBACK_API_KEY`) when the panel only sends a
+4. normalises every tool/function parameter schema so its root is a JSON
+   **object** (`{"type":"object","properties":{...}}`), fixing the
+   `Invalid schema for function '...': [] is not of type "object"` 400 error.
+5. can supply its own API key (`FALLBACK_API_KEY`) when the panel only sends a
    placeholder key to a custom base URL.
 
 Everything else is forwarded unchanged to `https://api.deepseek.com`.
@@ -125,6 +130,7 @@ implement `/responses`, so the proxy translates it. Mapping:
 | `instructions` (string)  | leading `system` message           |
 | `input` (string)         | a single `user` message            |
 | `input` (array of items) | `messages[]` (roles, text parts, `function_call`/`function_call_output`) |
+| `tools[]` (`{type,name,parameters}`) | `tools[]` in chat/completions shape (`function.{name,parameters}`), schema re-rooted as object |
 | `model`                  | `model` (defaults to `DEFAULT_MODEL`) |
 | `max_output_tokens`      | `max_tokens`                       |
 | `temperature`, `top_p`, `stream`, `stop`, penalties, `seed` | passthrough |
@@ -333,6 +339,53 @@ Read it like this:
   sending something the translation did not recognise — check that you are
   hitting the `/responses` path (so `translated_responses` is `true`) and
   extend `responses_content_to_chat()`.
+
+### 400: `Invalid schema for function '...': [] is not of type "object"`
+
+Full shape of the error:
+
+```
+400: Invalid schema for function 'get_top_level_sub_projects':
+[] is not of type "object" (request_id: ...)
+```
+
+DeepSeek validates each tool/function like a strict JSON Schema validator and
+requires the **root** of every `parameters` object to be an object
+(`"type":"object"`). OpenAI is lenient; DeepSeek is not. The Android Studio
+panel sometimes sends:
+
+- `"parameters": []` (empty array), or
+- `"parameters": {}` / a schema without `"type"`, or
+- a Responses-shaped tool (`{"type":"function","name":...,"parameters":...}`)
+  that is not in the chat/completions shape.
+
+The proxy now fixes all of these:
+
+- `normalise_schema_root()` forces `"type":"object"` and guarantees a
+  `"properties"` object (using `{}` rather than `[]` when empty, so it encodes
+  as a JSON object, not an array);
+- `normalise_tools()` walks `tools[]` and applies the above, handling both the
+  chat/completions shape (`tools[].function.parameters`) and the
+  Responses/legacy shape (`tools[].parameters`), which it also re-homes under
+  `function`.
+
+Only the **root** of each function's schema is coerced; nested schemas are left
+untouched.
+
+Check `?__debug` — the `last_request` object now includes `tools_summary`:
+
+```json
+"tools_summary": [
+  { "i": 0, "name": "get_top_level_sub_projects", "parameters_type": "object", "has_properties": true },
+  { "i": 1, "name": "read_file",                 "parameters_type": "object", "has_properties": true }
+]
+```
+
+`parameters_type` must be `"object"` and `has_properties` should be `true` for
+every entry. If you see `parameters_type: "(none)"` or `"array"`, the coercion
+did not run — make sure the request path matched (`translated_responses: true`
+for `/responses`, or a `chat/completions` path) and that `tools` is present in
+the body.
 
 ### Headers rendered as text in the browser
 

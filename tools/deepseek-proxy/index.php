@@ -17,7 +17,10 @@
  *      accepts one system message);
  *   2. translates OpenAI "Responses API" requests (POST /responses, which
  *      DeepSeek does not implement) into chat/completions requests;
- *   3. can supply its own API key (FALLBACK_API_KEY) when the client only sends
+ *   3. normalises message content and tool parameter schemas to the shapes
+ *      DeepSeek accepts (plain string / text|image_url blocks; object-rooted
+ *      function parameters), see normalise_tools();
+ *   4. can supply its own API key (FALLBACK_API_KEY) when the client only sends
  *      a placeholder, since some IDE panels do not forward the real key to a
  *      custom base URL.
  * Everything else is forwarded untouched to https://api.deepseek.com.
@@ -173,6 +176,32 @@ function summarise_messages(array $messages): array {
     return $out;
 }
 
+/**
+ * Compact, key-free description of the outgoing tools so ?__debug shows the
+ * function names and whether their parameter schema is an object root.
+ */
+function summarise_tools(?array $tools): ?array {
+    if (!is_array($tools)) {
+        return null;
+    }
+    $out = [];
+    foreach ($tools as $i => $tool) {
+        if (!is_array($tool)) {
+            continue;
+        }
+        $fn  = isset($tool['function']) && is_array($tool['function']) ? $tool['function'] : $tool;
+        $par = $fn['parameters'] ?? null;
+        $rootType = is_array($par) ? ($par['type'] ?? '(none)') : gettype($par);
+        $out[] = [
+            'i'                => $i,
+            'name'             => $fn['name'] ?? '?',
+            'parameters_type'  => $rootType,
+            'has_properties'   => is_array($par) && array_key_exists('properties', $par),
+        ];
+    }
+    return $out;
+}
+
 function fail(int $code, string $type, string $message): void {
     http_response_code($code);
     header('Content-Type: application/json');
@@ -255,6 +284,73 @@ function normalise_messages(array $messages): array {
     }
 
     return $messages;
+}
+
+/**
+ * DeepSeek (unlike OpenAI) strictly validates that every function's
+ * `parameters` is a JSON-Schema OBJECT, i.e. its root has "type":"object".
+ * The Android Studio panel sometimes sends `parameters` as an empty array `[]`
+ * (or omits "type"/"properties"), which DeepSeek rejects with:
+ *
+ *   400: Invalid schema for function 'x': [] is not of type "object"
+ *
+ * This rewrites such schemas so the root is always an object. Nested schemas
+ * are left untouched; only the top level of each function's `parameters` is
+ * coerced.
+ */
+function normalise_schema_root($schema) {
+    // PHP decodes JSON `[]` and `{}` both to array(); an empty array cannot be
+    // distinguished, and either way DeepSeek wants an object here, so map any
+    // non-array / empty value to a bare object schema.
+    if (!is_array($schema) || $schema === []) {
+        return ['type' => 'object', 'properties' => new stdClass()];
+    }
+
+    // Force the root type to "object".
+    $schema['type'] = 'object';
+
+    // Ensure "properties" exists and is an object even when empty.
+    if (!array_key_exists('properties', $schema) || $schema['properties'] === null) {
+        $schema['properties'] = new stdClass();
+    } elseif (!is_array($schema['properties'])) {
+        $schema['properties'] = new stdClass();
+    } elseif ($schema['properties'] === []) {
+        $schema['properties'] = new stdClass();
+    }
+
+    return $schema;
+}
+
+/**
+ * Rewrite the request `tools` array so every function's parameter schema has
+ * an object root (see normalise_schema_root). Returns true if anything changed.
+ */
+function normalise_tools(array &$payload): bool {
+    if (!isset($payload['tools']) || !is_array($payload['tools'])) {
+        return false;
+    }
+
+    $changed = false;
+    foreach ($payload['tools'] as &$tool) {
+        if (!is_array($tool)) {
+            continue;
+        }
+        // Chat/completions shape: {"type":"function","function":{"name","parameters"}}
+        if (isset($tool['function']) && is_array($tool['function'])) {
+            $fixed = normalise_schema_root($tool['function']['parameters'] ?? null);
+            $tool['function']['parameters'] = $fixed;
+            $changed = true;
+            continue;
+        }
+        // Responses/legacy shape: {"name","parameters"} directly on the tool.
+        if (isset($tool['name'])) {
+            $tool['parameters'] = normalise_schema_root($tool['parameters'] ?? null);
+            $changed = true;
+        }
+    }
+    unset($tool);
+
+    return $changed;
 }
 
 /**
@@ -455,6 +551,28 @@ function translate_responses_request(array $req): array {
     // DeepSeek rejects stream_options; drop it if present.
     unset($out['stream_options']);
 
+    // Responses tools ({"type":"function","name","parameters"}) map to the
+    // chat/completions tools shape. Copy them over, then normalise.
+    if (isset($req['tools']) && is_array($req['tools'])) {
+        $out['tools'] = $req['tools'];
+        // Responses function tools: lift name/parameters under "function".
+        foreach ($out['tools'] as &$tool) {
+            if (is_array($tool)
+                && ($tool['type'] ?? null) === 'function'
+                && isset($tool['name'])
+                && !isset($tool['function'])) {
+                $tool['function'] = [
+                    'name'        => $tool['name'],
+                    'description' => $tool['description'] ?? '',
+                    'parameters'  => $tool['parameters'] ?? null,
+                ];
+                unset($tool['name'], $tool['description'], $tool['parameters']);
+            }
+        }
+        unset($tool);
+        normalise_tools($out);
+    }
+
     return $out;
 }
 
@@ -513,6 +631,7 @@ $rewroteRoles = false;
 $rolesBefore = null;
 $rolesAfter = null;
 $messagesSummary = null;
+$toolsSummary = null;
 
 if ($rawBody !== '' && $translatedResponses) {
     // Translate a Responses API body into a chat/completions body.
@@ -526,6 +645,7 @@ if ($rawBody !== '' && $translatedResponses) {
         $rolesAfter = $rolesBefore;
         $rewroteRoles = true;
         $messagesSummary = summarise_messages($translated['messages'] ?? []);
+        $toolsSummary = summarise_tools($translated['tools'] ?? null);
         log_debug('responses body translated; roles ' . implode(',', $rolesBefore));
         $body = json_encode($translated, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     } else {
@@ -533,20 +653,36 @@ if ($rawBody !== '' && $translatedResponses) {
     }
 } elseif ($rawBody !== '' && is_chat_path($path)) {
     $json = json_decode($rawBody, true);
-    if (json_last_error() === JSON_ERROR_NONE && is_array($json) && isset($json['messages']) && is_array($json['messages'])) {
-        $rolesBefore = array_map(
-            fn($m) => is_array($m) && isset($m['role']) ? $m['role'] : '?',
-            $json['messages']
-        );
-        $json['messages'] = normalise_messages($json['messages']);
-        $rolesAfter = array_map(
-            fn($m) => is_array($m) && isset($m['role']) ? $m['role'] : '?',
-            $json['messages']
-        );
-        $rewroteRoles = $rolesBefore !== $rolesAfter;
-        $messagesSummary = summarise_messages($json['messages']);
-        log_debug('roles ' . implode(',', $rolesBefore) . ' => ' . implode(',', $rolesAfter));
-        $body = json_encode($json, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+        $touched = false;
+        if (isset($json['messages']) && is_array($json['messages'])) {
+            $rolesBefore = array_map(
+                fn($m) => is_array($m) && isset($m['role']) ? $m['role'] : '?',
+                $json['messages']
+            );
+            $json['messages'] = normalise_messages($json['messages']);
+            $rolesAfter = array_map(
+                fn($m) => is_array($m) && isset($m['role']) ? $m['role'] : '?',
+                $json['messages']
+            );
+            $rewroteRoles = $rolesBefore !== $rolesAfter;
+            $messagesSummary = summarise_messages($json['messages']);
+            log_debug('roles ' . implode(',', $rolesBefore) . ' => ' . implode(',', $rolesAfter));
+            $touched = true;
+        }
+        // DeepSeek strictly validates function parameter schemas.
+        if (normalise_tools($json)) {
+            log_debug('normalised tools parameter schemas');
+            $touched = true;
+        }
+        if (isset($json['tools'])) {
+            $toolsSummary = summarise_tools(is_array($json['tools']) ? $json['tools'] : null);
+        }
+        if ($touched) {
+            $body = json_encode($json, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } else {
+            log_debug('body present but nothing to rewrite; forwarding as-is');
+        }
     } else {
         log_debug('body present but not a chat JSON object; forwarding as-is');
     }
@@ -695,6 +831,7 @@ capture_summary([
     'roles_before'         => $rolesBefore,
     'roles_after'          => $rolesAfter,
     'messages_summary'     => $messagesSummary,
+    'tools_summary'        => $toolsSummary,
 ]);
 
 // ---------------------------------------------------------------------------
