@@ -18,8 +18,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import net.lingala.zip4j.ZipFile;
-
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -772,9 +770,9 @@ public class KcEnUtils {
                     existingFolder.delete();
 
                 publishProgress("Extracting Zip File...");
-                ZipFile zipFile = new ZipFile(out);
-                zipFile.extractAll(KcUtils.getAppCacheFileDir(context, ""));
-                Log.e("GOTO", "zip extracted to " + KcUtils.getAppCacheFileDir(context, ""));
+                File extractDir = new File(KcUtils.getAppCacheFileDir(context, ""));
+                ZipUtils.extract(zipOut, extractDir);
+                Log.e("GOTO", "zip extracted to " + extractDir.getAbsolutePath());
 
                 publishProgress("Create .nomedia File...");
                 File file = new File(getEnPatchLocalFolder(context).concat(".nomedia"));
